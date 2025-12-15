@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 데이터 로드 및 전처리 함수 (변동 없음) ---
+# --- 데이터 로드 및 전처리 함수 ---
 @st.cache_data
 def load_data(file_path):
     """엑셀 파일을 로드하고 전처리를 수행합니다."""
@@ -47,13 +47,15 @@ def load_data(file_path):
     
     return df_clean
 
-# --- 요약 표 출력 함수 (변동 없음) ---
+# --- 종합 요약에 총 인원 추가 ---
 def generate_summary_tables(df):
     st.title("타이타닉 데이터 분석 종합 요약 표")
     st.markdown(f"**분석 데이터 파일:** `{FILE_PATH}`")
     st.markdown("---")
     
+    total_people = len(df)
     total_deaths = df['Death'].sum()
+    st.header(f"👥 총 인원 수: {total_people}명")
     st.header(f"💔 총 사망자 수: {total_deaths}명")
     st.subheader("사망자 세부 분석")
     
@@ -95,9 +97,9 @@ def generate_summary_tables(df):
     
     st.markdown("---")
 
-# --- 시각화 함수 (변동 없음) ---
+# --- 시각화 함수 ---
 def plot_counts(df, category, target, target_name, plot_type, extreme_select):
-    """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다. (내부 라벨은 영어)"""
+    """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다."""
     
     if category == 'age':
         plot_data = df.groupby('age_group')[target].sum().reset_index()
@@ -155,10 +157,11 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
         extreme_label = '가장 낮은 지점'
         st.error(f"🥉 **{extreme_label}:** {extreme_data[x_col].iloc[0]} ({min_val})")
 
-
+# --- 상관관계 분석 함수 수정 ---
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다. (내부 라벨은 영어)"""
     
+    # 상관 분석에서 연속형 변수만 사용
     numeric_df = df[['survived', 'age', 'fare']].copy() 
     
     corr_matrix, max_corr, min_corr = calculate_correlation(numeric_df)
@@ -166,7 +169,7 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == 'Heatmap':
-        # 1. 히트맵 시각화 (변동 없음)
+        # 히트맵 시각화
         plt.figure(figsize=(6, 6))
         fig, ax = plt.subplots(figsize=(6, 6))
         
@@ -188,7 +191,7 @@ def plot_correlation(df, corr_type, plot_type):
         ax.set_title("Correlation Heatmap of Titanic Attributes", fontsize=12)
         st.pyplot(fig, use_container_width=False) 
         
-        # 2. 강한 상관관계 텍스트 출력
+        # 강한 상관관계 출력
         if corr_type == '양의 상관관계':
             if not max_corr.empty:
                 pair = max_corr.index[0]
@@ -205,34 +208,21 @@ def plot_correlation(df, corr_type, plot_type):
                 st.warning("분석할 수 있는 유효한 음의 상관관계 쌍이 없습니다.")
 
     elif plot_type == 'Scatter Plot':
-        
-        # === 산점도만 사용 (Age vs Fare로 고정) ===
         x_var, y_var = 'age', 'fare' 
         
-        if corr_type == '양의 상관관계':
-            title_prefix = "Strongest Positive Correlation Analysis (Age vs Fare)"
-        else: # 음의 상관관계
-            title_prefix = "Strongest Negative Correlation Analysis (Age vs Fare)"
-        
-        # 2. 산점도 시각화
-        st.subheader(f"산점도: {title_prefix}")
+        # 산점도 시각화
+        st.subheader(f"산점도: {x_var.capitalize()} vs {y_var.capitalize()}")
         
         plt.figure(figsize=(6, 4))
         fig, ax = plt.subplots(figsize=(6, 4))
         
-        # X, Y 축에 연속형 변수 Age와 Fare만 사용, Survived는 색상(hue)으로만 사용합니다.
         sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep', legend='full') 
         
-        # 3. 축 라벨과 포맷팅
         ax.set_title(f"Scatter Plot: {x_var.capitalize()} vs {y_var.capitalize()} (Grouped by Survival)", fontsize=12)
         ax.set_xlabel(x_var.capitalize(), fontsize=10)
         ax.set_ylabel(y_var.capitalize(), fontsize=10)
         
-        ax.ticklabel_format(style='plain', useOffset=False, axis='x')
-        ax.ticklabel_format(style='plain', useOffset=False, axis='y')
-            
         st.pyplot(fig, use_container_width=False) 
-
 
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 비자명 상관관계 쌍을 추출합니다."""
@@ -252,7 +242,7 @@ def calculate_correlation(df):
     
     return corr_matrix, max_corr, min_corr
 
-# --- 메인 앱 로직 (변동 없음) ---
+# --- 메인 앱 로직 ---
 def main():
     
     data = load_data(FILE_PATH)
@@ -280,10 +270,10 @@ def main():
 
         if analysis_theme_kor == '사망자 수':
             target_col = 'Death'
-            target_name = 'Death Count' # 그래프 라벨용
+            target_name = 'Death Count'
         else: 
             target_col = 'Survival'
-            target_name = 'Survival Count' # 그래프 라벨용
+            target_name = 'Survival Count'
             
         category_options = {
             f'연령별': 'age',
@@ -314,7 +304,6 @@ def main():
         
         plot_counts(data, selected_category_col, target_col, target_name, plot_style, extreme_select_kor)
 
-
     elif graph_type == '상관관계 분석 (그래프)':
         
         corr_type_kor = st.sidebar.radio(
@@ -330,7 +319,6 @@ def main():
         )
         
         plot_correlation(data, corr_type_kor, corr_plot_type)
-        
-        
+
 if __name__ == "__main__":
     main()
