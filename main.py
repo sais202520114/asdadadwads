@@ -8,25 +8,25 @@ import matplotlib.font_manager as fm # 폰트 설정을 위한 라이브러리 �
 # 사용자님이 요청하신 파일명으로 정확히 설정
 FILE_PATH = "titanic.xls"
 
-# --- Matplotlib 한글 폰트 설정 ---
-# 폰트 경로 설정 (Windows 환경 기준)
-font_path = 'C:/Windows/Fonts/malgun.ttf' 
-font_name = 'Malgun Gothic'
+# --- Matplotlib 한글 폰트 설정 (더욱 견고하게 수정) ---
+plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
 
-try:
-    # 폰트가 시스템에 있는지 확인하고 설정
-    fm.fontManager.addfont(font_path)
+# 시스템에서 흔히 사용되는 한글 폰트 이름을 검색합니다.
+font_name = None
+for font_path in fm.findSystemFonts(fontpaths=None, fontext='ttf'):
+    font_prop = fm.FontProperties(fname=font_path)
+    fname = font_prop.get_name()
+    if 'Malgun' in fname or 'AppleGothic' in fname or 'NanumGothic' in fname:
+        font_name = fname
+        break
+
+if font_name:
     plt.rcParams['font.family'] = font_name
-except FileNotFoundError:
-    # 폰트 파일을 찾을 수 없는 경우 Mac/Linux 등 다른 환경 폰트 설정
-    try:
-        plt.rcParams['font.family'] = 'AppleGothic' # Mac OS
-    except:
-        plt.rcParams['font.family'] = 'sans-serif'
-        st.warning("경고: 그래프 한글 출력을 위한 폰트(맑은 고딕, AppleGothic 등)를 찾을 수 없습니다. 한글이 깨질 수 있습니다.")
-    
-# 마이너스 기호 깨짐 방지
-plt.rcParams['axes.unicode_minus'] = False
+else:
+    # 적절한 한글 폰트를 찾지 못한 경우
+    plt.rcParams['font.family'] = 'sans-serif'
+    st.warning("경고: 시스템에서 적절한 한글 폰트를 찾을 수 없습니다. 그래프의 한글이 깨질 수 있습니다. '나눔고딕' 등의 폰트를 설치하고 코드를 수정해 보세요.")
+
 
 # Streamlit 페이지 설정
 st.set_page_config(
@@ -42,7 +42,8 @@ def load_data(file_path):
     try:
         df = pd.read_excel(file_path)
     except Exception:
-        st.error(f"오류: 파일을 찾을 수 없거나 'xlrd' 라이브러리가 설치되지 않았습니다. 파일 경로('{file_path}')와 requirements.txt를 확인해 주세요.")
+        # xlrd 관련 오류 및 파일 오류 메시지
+        st.error(f"오류: 파일을 찾을 수 없거나 엑셀 로드 라이브러리('xlrd')가 설치되지 않았습니다. 파일 경로('{file_path}')와 requirements.txt를 확인해 주세요.")
         return None
     
     # 분석에 필요한 열 선택
@@ -67,15 +68,15 @@ def load_data(file_path):
     
     return df_clean
 
-# --- 요약 표 출력 함수 (메뉴 맨 위) ---
+# --- 요약 표 출력 함수 (새로운 메뉴 항목) ---
 def generate_summary_tables(df):
-    st.title("타이타닉 데이터 분석 종합 요약")
+    st.title("타이타닉 데이터 분석 종합 요약 표")
+    st.markdown(f"**분석 데이터 파일명:** `{FILE_PATH}`")
     st.markdown("---")
     
     # 1. 사망자 요약
     total_deaths = df['Death'].sum()
     st.header(f"💔 총 사망자 수: {total_deaths}명")
-
     st.subheader("사망자 세부 분석 표")
     
     col_d1, col_d2 = st.columns(2)
@@ -100,7 +101,6 @@ def generate_summary_tables(df):
     # 2. 구조자 요약
     total_survival = df['Survival'].sum()
     st.header(f"✅ 총 구조된 사람 수: {total_survival}명")
-
     st.subheader("구조자 세부 분석 표")
     
     col_s1, col_s2 = st.columns(2)
@@ -141,7 +141,7 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
 
     # 총합계 출력
     total_sum = plot_data[target].sum()
-    st.markdown(f"**총 합계 (그래프 대상):** `{total_sum}`명")
+    st.info(f"**{x_label_kor}별 {target_name_kor} 총 합계:** `{total_sum}`명")
     
     st.subheader(f"📊 {target_name_kor} ({x_label_kor}별)")
 
@@ -185,12 +185,12 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
     # 지점 선택에 따라 결과 출력
     if extreme_select == '가장 높은 지점':
         extreme_data = plot_data[plot_data[target] == max_val]
-        extreme_label = '가장 높음'
-        st.success(f"🥇 **{extreme_label} ({target_name_kor}):** {extreme_data[x_col].iloc[0]} ({max_val}명)")
+        extreme_label = '가장 높은 지점'
+        st.success(f"🥇 **{extreme_label}:** {extreme_data[x_col].iloc[0]} ({max_val}명)")
     else:
         extreme_data = plot_data[plot_data[target] == min_val]
-        extreme_label = '가장 낮음'
-        st.error(f"🥉 **{extreme_label} ({target_name_kor}):** {extreme_data[x_col].iloc[0]} ({min_val}명)")
+        extreme_label = '가장 낮은 지점'
+        st.error(f"🥉 **{extreme_label}:** {extreme_data[x_col].iloc[0]} ({min_val}명)")
 
 
 def plot_correlation(df, corr_type, plot_type):
@@ -271,24 +271,29 @@ def main():
     if data is None:
         return
 
-    # 0. 맨 위 총 합계 표 출력
-    generate_summary_tables(data)
-
     # ------------------
     # 1. 사이드바 메뉴 구성
     # ------------------
 
     st.sidebar.title("메뉴 선택")
     
-    # 1단계: 메인 그래프 선택
+    # 1단계: 메인 그래프 선택 (표 메뉴 추가)
     graph_type = st.sidebar.radio(
-        "📊 그래프 유형 선택",
-        ('사망자/구조자 수 분석', '상관관계 분석')
+        "📊 분석 유형 선택",
+        ('종합 요약 (표)', '사망자/구조자 수 분석 (그래프)', '상관관계 분석 (그래프)')
     )
     
     st.sidebar.markdown("---")
     
-    if graph_type == '사망자/구조자 수 분석':
+    # ------------------
+    # 2. 메인 화면 구성
+    # ------------------
+    
+    if graph_type == '종합 요약 (표)':
+        # 요청하신 대로, 표는 별도의 메뉴로 분리
+        generate_summary_tables(data)
+
+    elif graph_type == '사망자/구조자 수 분석 (그래프)':
         
         # 2단계: 분석 주제 (사망자 수 또는 구조자 수)
         analysis_theme_kor = st.sidebar.radio(
@@ -311,7 +316,7 @@ def main():
         }
             
         selected_category_name = st.sidebar.selectbox(
-            f"세부 {target_name_kor} 카테고리",
+            f"세부 분류 카테고리",
             options=list(category_options.keys()),
             index=0
         )
@@ -319,7 +324,7 @@ def main():
         
         st.sidebar.markdown("---")
         
-        # 4단계: 시각화 유형 선택 (막대/꺾은선) - 맨 오른쪽에 위치하도록 요청됨
+        # 4단계: 시각화 유형 선택 (막대/꺾은선)
         plot_style = st.sidebar.radio(
             "📈 시각화 유형 선택",
             ('막대 그래프', '꺾은선 그래프')
@@ -327,7 +332,7 @@ def main():
         
         st.sidebar.markdown("---")
 
-        # 5단계: 최대/최소 지점 선택 (기본: 가장 높은 지점) - 그래프 맨 아래 정보
+        # 5단계: 최대/최소 지점 선택 (기본: 가장 높은 지점)
         extreme_select = st.sidebar.radio(
             "⬆️ 지점 강조 선택",
             ('가장 높은 지점', '가장 낮은 지점'),
@@ -338,7 +343,7 @@ def main():
         plot_counts(data, selected_category_col, target_col, target_name_kor, plot_style, extreme_select)
 
 
-    elif graph_type == '상관관계 분석':
+    elif graph_type == '상관관계 분석 (그래프)':
         
         # 2단계: 양/음의 상관관계 선택 (맨 아래 요구사항)
         corr_type = st.sidebar.radio(
@@ -348,7 +353,7 @@ def main():
         
         st.sidebar.markdown("---")
         
-        # 3단계: 시각화 유형 선택 (산점도/히트맵) - 맨 오른쪽에 위치하도록 요청됨
+        # 3단계: 시각화 유형 선택 (산점도/히트맵)
         corr_plot_type = st.sidebar.radio(
             "📊 시각화 유형 선택",
             ('산점도', '히트맵')
