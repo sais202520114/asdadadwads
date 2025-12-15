@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 데이터 로드 및 전처리 함수 (Age 스케일링 문제 해결 확인) ---
+# --- 데이터 로드 및 전처리 함수 ---
 @st.cache_data
 def load_data(file_path):
     """엑셀 파일을 로드하고 전처리를 수행합니다."""
@@ -34,7 +34,6 @@ def load_data(file_path):
     df_clean['pclass'] = df_clean['pclass'].fillna(df_clean['pclass'].mode()[0]).astype(int)
     df_clean['survived'] = df_clean['survived'].fillna(0).astype(int)
     
-    # === age/fare: 불필요한 스케일링 없음. 중앙값으로 결측치 처리만 진행 ===
     df_clean['age'] = df_clean['age'].fillna(df_clean['age'].median())
     df_clean['fare'] = df_clean['fare'].fillna(df_clean['fare'].median())
     
@@ -115,7 +114,6 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     
     st.subheader(f"📊 {target_name} by {x_label}")
 
-    # === 크기 강제 설정 ===
     plt.figure(figsize=(6, 4))
     fig, ax = plt.subplots(figsize=(6, 4))
     
@@ -143,7 +141,6 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=12)
     ax.set_xlabel(x_label, fontsize=10)
     ax.set_ylabel(target_name, fontsize=10)
-    # use_container_width=False로 Streamlit 강제 확대 방지
     st.pyplot(fig, use_container_width=False) 
     
     max_val = plot_data[target].max()
@@ -162,7 +159,8 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다. (내부 라벨은 영어)"""
     
-    numeric_df = df[['survived', 'pclass', 'age', 'fare']].copy()
+    # === 수정: pclass를 제외하고 연속형 변수만 상관관계 행렬에 포함 ===
+    numeric_df = df[['survived', 'age', 'fare']].copy() 
     
     corr_matrix, max_corr, min_corr = calculate_correlation(numeric_df)
     
@@ -173,7 +171,8 @@ def plot_correlation(df, corr_type, plot_type):
         plt.figure(figsize=(6, 6))
         fig, ax = plt.subplots(figsize=(6, 6))
         
-        col_names = ['Survived', 'PClass', 'Age', 'Fare']
+        # pclass 제외에 따른 컬럼명 수정
+        col_names = ['Survived', 'Age', 'Fare']
         corr_matrix.columns = col_names
         corr_matrix.index = col_names
         
@@ -208,27 +207,29 @@ def plot_correlation(df, corr_type, plot_type):
                 st.warning("분석할 수 있는 유효한 음의 상관관계 쌍이 없습니다.")
 
     elif plot_type == 'Scatter Plot':
-        # 1. 산점도 변수 선택 로직 보강
+        # 1. 산점도 변수 선택 로직
         
         if corr_type == '양의 상관관계':
             if not max_corr.empty:
                 pair = max_corr.index[0]
+                # Age/Fare 쌍이 선택될 가능성이 높음
                 x_var, y_var = pair[0], pair[1] 
                 title_prefix = "Strongest Positive Correlation"
             else:
-                # Fallback: Fare vs Age
+                # Fallback: Fare vs Age (PClass 제외)
                 x_var, y_var = 'fare', 'age'
                 title_prefix = "Positive Correlation (Fallback: Fare vs Age)"
 
         else: # 음의 상관관계
+            # === 수정: 음의 상관관계는 'Survived'와 'Age' 또는 'Fare' 사이에서 발생 가능 ===
             if not min_corr.empty:
                 pair = min_corr.index[0]
                 x_var, y_var = pair[0], pair[1]
                 title_prefix = "Strongest Negative Correlation"
             else:
-                # Fallback: Pclass vs Fare
-                x_var, y_var = 'pclass', 'fare'
-                title_prefix = "Negative Correlation (Fallback: PClass vs Fare)"
+                # Fallback: Survived vs Age (일반적인 음의 상관관계 쌍)
+                x_var, y_var = 'age', 'survived'
+                title_prefix = "Negative Correlation (Fallback: Age vs Survived)"
         
         # 2. 산점도 시각화
         st.subheader(f"산점도: {title_prefix} - {x_var} vs {y_var}")
@@ -237,23 +238,22 @@ def plot_correlation(df, corr_type, plot_type):
         plt.figure(figsize=(6, 4))
         fig, ax = plt.subplots(figsize=(6, 4))
         
-        # DataFrame을 사용하여 float64로 변환된 age/fare를 그대로 사용
-        sns.scatterplot(x=df[x_var], y=df[y_var], data=df, ax=ax, hue='survived', palette='deep', legend='full') 
+        # 산점도 그리기
+        sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep', legend='full') 
         
         ax.set_title(f"Relationship between {x_var} and {y_var} (Grouped by Survival)", fontsize=12)
         ax.set_xlabel(x_var, fontsize=10)
         ax.set_ylabel(y_var, fontsize=10)
         
-        # X축 포맷팅 (나이/운임이 작은 값으로 스케일링되지 않았다는 가정 하에)
-        if x_var in ['age', 'fare']:
-            ax.ticklabel_format(style='plain', axis='x')
-        if y_var in ['age', 'fare']:
-            ax.ticklabel_format(style='plain', axis='y')
+        # 축 포맷팅 (큰 값이 작은 값으로 포맷되는 것을 방지)
+        ax.ticklabel_format(style='plain', useOffset=False, axis='x')
+        ax.ticklabel_format(style='plain', useOffset=False, axis='y')
             
         st.pyplot(fig, use_container_width=False) 
 
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 비자명 상관관계 쌍을 추출합니다."""
+    # pclass가 제외된 numeric_df를 받음
     corr_matrix = df.corr()
     
     np.fill_diagonal(corr_matrix.values, np.nan) 
@@ -262,6 +262,7 @@ def calculate_correlation(df):
     
     valid_corr = corr_unstacked.dropna()
     
+    # 1 또는 -1에 극단적으로 가까운 값 필터링
     valid_corr = valid_corr[abs(valid_corr) < 0.999999] 
 
     max_corr = valid_corr.head(1)
