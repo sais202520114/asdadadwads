@@ -42,23 +42,20 @@ def handle_missing_data(df):
     df['fare'] = df['fare'].fillna(df['fare'].median())
     return df
 
-# --- 이상치 처리 (IQR 방법) ---
+# --- 이상치 처리 (IQR 방법) 함수 수정됨 ---
 def handle_outliers(df):
-    """이상치 처리 함수 (IQR 방법): 이상치를 NaN으로 처리"""
+    """이상치 처리 함수: 나이는 상식적 기준 (0~100세), 요금은 IQR 기준으로 NaN 처리"""
     
-    Q1_age = df['age'].quantile(0.25)
-    Q3_age = df['age'].quantile(0.75)
-    IQR_age = Q3_age - Q1_age
-    lower_bound_age = Q1_age - 1.5 * IQR_age
-    upper_bound_age = Q3_age + 1.5 * IQR_age
-
+    # 1. 나이 (Age) 이상치 처리: 0세 미만, 100세 초과만 이상치로 간주
+    df['age'] = np.where((df['age'] < 0) | (df['age'] > 100), np.nan, df['age'])
+    
+    # 2. 요금 (Fare) 이상치 처리: 기존 IQR 방법 유지
     Q1_fare = df['fare'].quantile(0.25)
     Q3_fare = df['fare'].quantile(0.75)
     IQR_fare = Q3_fare - Q1_fare
     lower_bound_fare = Q1_fare - 1.5 * IQR_fare
     upper_bound_fare = Q3_fare + 1.5 * IQR_fare
 
-    df['age'] = np.where((df['age'] < lower_bound_age) | (df['age'] > upper_bound_age), np.nan, df['age'])
     df['fare'] = np.where((df['fare'] < lower_bound_fare) | (df['fare'] > upper_bound_fare), np.nan, df['fare'])
 
     return df
@@ -96,7 +93,6 @@ def plot_boxplot(df):
     st.pyplot(fig, use_container_width=False) 
 
 # --- 종합 요약에 총 인원 추가 ---
-# 이 함수는 연령대별 집계(`age_group`)가 필요하므로, 연령대가 정확한 데이터를 사용해야 합니다.
 def generate_summary_tables(df_raw):
     st.title("타이타닉 데이터 분석 종합 요약 표")
     st.markdown(f"**분석 데이터 파일:** `{FILE_PATH}`")
@@ -144,7 +140,7 @@ def generate_summary_tables(df_raw):
         
     st.markdown("---")
 
-# --- 시각화 함수 (df_raw 사용하도록 수정) ---
+# --- 시각화 함수 ---
 def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select):
     """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다."""
     
@@ -153,7 +149,6 @@ def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select
         return
 
     if category == 'age':
-        # 이상치 처리가 안 된 data_raw 사용
         plot_data = df_raw.groupby('age_group')[target].sum().reset_index()
         x_col = 'age_group'
         x_label = 'Age Group'
@@ -209,7 +204,6 @@ def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select
         st.error(f"🥉 **{extreme_label}:** {extreme_data.reset_index(drop=True)[x_col].iloc[0]} ({min_val})")
 
 # --- 상관관계 분석 함수 ---
-# 이 함수는 age와 fare의 정규화된 값을 사용해야 하므로, data 사용 유지
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다."""
     
@@ -289,7 +283,7 @@ def calculate_correlation(df):
     
     return corr_matrix, max_corr, min_corr
 
-# --- 분위수 및 이상치 계산/출력 함수 ---
+# --- 분위수 및 이상치 계산/출력 함수 (박스 플롯 메뉴에서만 출력) ---
 def analyze_quantiles_and_outliers(df_raw):
     """주어진 원본 데이터프레임의 'age'와 'fare'에 대한 분위수와 이상치 개수를 계산하고 출력합니다."""
     st.markdown("---")
@@ -298,7 +292,7 @@ def analyze_quantiles_and_outliers(df_raw):
     analysis_vars = ['age', 'fare']
     results = {}
     
-    # 1. 계산 로직 수행
+    # 1. 계산 로직 수행 (df_raw는 나이 이상치가 0세 미만, 100세 초과로만 처리되어 있음)
     for var in analysis_vars:
         Q1 = df_raw[var].quantile(0.25)
         Q2 = df_raw[var].quantile(0.5) # 중앙값 (2사분위수)
@@ -308,7 +302,7 @@ def analyze_quantiles_and_outliers(df_raw):
         lower_bound = Q1 - 1.5 * IQR
         upper_bound = Q3 + 1.5 * IQR
         
-        # 이상치 개수 계산 (IQR 기준)
+        # 이상치 개수 계산 (IQR 기준) - 요금의 이상치 개수 확인용
         outliers_count = len(df_raw[
             (df_raw[var].notna()) & ((df_raw[var] < lower_bound) | (df_raw[var] > upper_bound))
         ])
@@ -328,14 +322,14 @@ def analyze_quantiles_and_outliers(df_raw):
         st.markdown(f"**1분위수 (Q1):** `{results['age']['Q1']:.2f}`")
         st.markdown(f"**2분위수 (중앙값, Q2):** `{results['age']['Q2_Median']:.2f}`")
         st.markdown(f"**3분위수 (Q3):** `{results['age']['Q3']:.2f}`")
-        st.error(f"**❗ IQR 기반 이상치 개수:** `{results['age']['Outliers_Count']}개`")
+        st.error(f"**❗ IQR 기반 이상치 개수:** `{results['age']['Outliers_Count']}개` (나이는 0~100세 기준으로 처리됨)")
 
     with col_a2:
         st.subheader("요금 (Fare) 분석")
         st.markdown(f"**1분위수 (Q1):** `{results['fare']['Q1']:.2f}`")
         st.markdown(f"**2분위수 (중앙값, Q2):** `{results['fare']['Q2_Median']:.2f}`")
         st.markdown(f"**3분위수 (Q3):** `{results['fare']['Q3']:.2f}`")
-        st.error(f"**❗ IQR 기반 이상치 개수:** `{results['fare']['Outliers_Count']}개`")
+        st.error(f"**❗ IQR 기반 이상치 개수:** `{results['fare']['Outliers_Count']}개` (요금은 IQR 기준으로 처리됨)")
         
     st.markdown("---")
 
@@ -354,11 +348,11 @@ def main():
     data_raw = create_analysis_columns(data_raw) 
     
     # 2. 전처리 단계 (이상치 처리, 재결측치 처리, 정규화) - data_raw와 분리
-    # data에도 Death/Survival 컬럼이 필요하므로 다시 생성
+    # data는 모델링/정규화/박스플롯용으로 사용. 나이 이상치 처리 로직이 변경됨.
     data = handle_missing_data(data)
-    data = handle_outliers(data)
+    data = handle_outliers(data) # <--- 나이 이상치 처리 기준이 0~100세로 변경됨
     data = handle_missing_data(data)
-    data = create_analysis_columns(data) # Death/Survival 컬럼만 재사용
+    data = create_analysis_columns(data) # Death/Survival 컬럼만 재사용 (age_group은 data_raw 기준)
     data = normalize_data(data)
 
     st.sidebar.title("메뉴 선택")
