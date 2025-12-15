@@ -17,12 +17,17 @@ st.set_page_config(
 # --- 데이터 로드 및 전처리 함수 ---
 @st.cache_data
 def load_data(file_path):
-    """CSV 파일을 로드하고 수치형 변수만 선택합니다."""
+    """엑셀(.xls) 파일을 로드하고 수치형 변수만 선택합니다."""
     try:
-        # 파일명이 .xls이지만 실제 형식은 CSV이므로 pd.read_csv를 사용합니다.
-        df = pd.read_csv(file_path)
+        # 파일명이 .xls이므로 pd.read_excel을 사용하여 엑셀 파일을 로드합니다.
+        # 사용자님이 업로드하신 파일이 실제로는 CSV 데이터 구조를 가지고 있지만,
+        # 파일명을 존중하여 .xls 처리를 시도합니다.
+        df = pd.read_excel(file_path)
     except FileNotFoundError:
         st.error(f"오류: 파일을 찾을 수 없습니다. '{file_path}' 파일이 앱과 같은 위치에 있는지 확인해 주세요.")
+        return None
+    except ImportError:
+        st.error("오류: 엑셀 파일 로드를 위해 'openpyxl' 또는 'xlrd' 라이브러리가 필요합니다. 'requirements.txt'를 확인해 주세요.")
         return None
     except Exception as e:
         st.error(f"데이터 로딩 중 오류 발생: {e}")
