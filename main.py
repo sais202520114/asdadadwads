@@ -157,7 +157,7 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
 
 
 def plot_correlation(df, corr_type, plot_type):
-    """상관관계를 산점도, 히트맵 또는 KDE Plot으로 그립니다."""
+    """상관관계를 산점도 또는 히트맵으로 그립니다. (내부 라벨은 영어)"""
     
     numeric_df = df[['survived', 'age', 'fare']].copy() 
     
@@ -206,56 +206,33 @@ def plot_correlation(df, corr_type, plot_type):
 
     elif plot_type == 'Scatter Plot':
         
-        # === 산점도/KDE Plot으로 변수 및 그래프 종류 교체 로직 ===
+        # === 산점도만 사용 (Age vs Fare로 고정) ===
+        x_var, y_var = 'age', 'fare' 
         
         if corr_type == '양의 상관관계':
-            # 1. 양의 상관관계: 산점도 (연속형 vs 연속형)
-            x_var, y_var = 'age', 'fare' 
-            title_prefix = "Strongest Positive Correlation (Age vs Fare)"
+            title_prefix = "Strongest Positive Correlation Analysis (Age vs Fare)"
+        else: # 음의 상관관계
+            title_prefix = "Strongest Negative Correlation Analysis (Age vs Fare)"
+        
+        # 2. 산점도 시각화
+        st.subheader(f"산점도: {title_prefix}")
+        
+        plt.figure(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(6, 4))
+        
+        # X, Y 축에 연속형 변수 Age와 Fare만 사용, Survived는 색상(hue)으로만 사용합니다.
+        sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep', legend='full') 
+        
+        # 3. 축 라벨과 포맷팅
+        ax.set_title(f"Scatter Plot: {x_var.capitalize()} vs {y_var.capitalize()} (Grouped by Survival)", fontsize=12)
+        ax.set_xlabel(x_var.capitalize(), fontsize=10)
+        ax.set_ylabel(y_var.capitalize(), fontsize=10)
+        
+        ax.ticklabel_format(style='plain', useOffset=False, axis='x')
+        ax.ticklabel_format(style='plain', useOffset=False, axis='y')
             
-            st.subheader(f"산점도: {title_prefix}")
-            
-            plt.figure(figsize=(6, 4))
-            fig, ax = plt.subplots(figsize=(6, 4))
-            
-            sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep', legend='full') 
-            
-            ax.set_title(f"Scatter Plot: {x_var.capitalize()} vs {y_var.capitalize()} (Grouped by Survival)", fontsize=12)
-            ax.set_xlabel(x_var.capitalize(), fontsize=10)
-            ax.set_ylabel(y_var.capitalize(), fontsize=10)
-            
-            ax.ticklabel_format(style='plain', useOffset=False, axis='x')
-            ax.ticklabel_format(style='plain', useOffset=False, axis='y')
-                
-            st.pyplot(fig, use_container_width=False) 
+        st.pyplot(fig, use_container_width=False) 
 
-        else: 
-            # 2. 음의 상관관계: KDE Plot으로 시각화 종류 교체 (이진 vs 연속형)
-            # 가장 강한 음의 상관관계는 Survived와 Age/Fare 사이에서 발생합니다.
-            # 이 관계를 가장 유효하게 보여주는 그래프는 KDE Plot입니다.
-            
-            # 음의 상관관계 분석 변수: Age (연령) 사용
-            analysis_var = 'age' 
-            title_prefix = f"Strongest Negative Correlation Analysis (Survival vs {analysis_var.capitalize()} Distribution)"
-
-            st.subheader(f"분포 그래프 (음의 상관관계 분석): {title_prefix}")
-            
-            plt.figure(figsize=(6, 4))
-            fig, ax = plt.subplots(figsize=(6, 4))
-            
-            # KDE Plot (커널 밀도 추정)을 사용하여 생존 여부(hue)에 따른 Age 분포를 비교
-            sns.kdeplot(data=df, x=analysis_var, hue='survived', fill=True, alpha=.5, linewidth=0, ax=ax, palette='deep')
-            
-            ax.set_title(f"KDE Plot: {analysis_var.capitalize()} Distribution by Survival Status", fontsize=12)
-            ax.set_xlabel(analysis_var.capitalize(), fontsize=10)
-            ax.set_ylabel("Density", fontsize=10)
-
-            # 범례 라벨 수정 (0: Death, 1: Survival)
-            handles, labels = ax.get_legend_handles_labels()
-            labels = ['Death (0)', 'Survival (1)']
-            ax.legend(handles, labels, title='Survived')
-            
-            st.pyplot(fig, use_container_width=False) 
 
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 비자명 상관관계 쌍을 추출합니다."""
@@ -352,8 +329,6 @@ def main():
             ('Scatter Plot', 'Heatmap')
         )
         
-        # 'Scatter Plot' 선택 시, 음의 상관관계라면 KDE Plot이 출력됩니다.
-        # 사용자의 UI 선택(Scatter Plot)을 지키면서 변수와 시각화 형태를 내부적으로 교체합니다.
         plot_correlation(data, corr_type_kor, corr_plot_type)
         
         
