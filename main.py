@@ -96,16 +96,17 @@ def plot_boxplot(df):
     st.pyplot(fig, use_container_width=False) 
 
 # --- 종합 요약에 총 인원 추가 ---
-def generate_summary_tables(df):
+# 이 함수는 연령대별 집계(`age_group`)가 필요하므로, 연령대가 정확한 데이터를 사용해야 합니다.
+def generate_summary_tables(df_raw):
     st.title("타이타닉 데이터 분석 종합 요약 표")
     st.markdown(f"**분석 데이터 파일:** `{FILE_PATH}`")
     st.markdown("---")
     
-    total_people = len(df)
-    total_deaths = df['Death'].sum()
-    total_survival = df['Survival'].sum()
+    total_people = len(df_raw)
+    total_deaths = df_raw['Death'].sum()
+    total_survival = df_raw['Survival'].sum()
     
-    if 'age_group' not in df.columns:
+    if 'age_group' not in df_raw.columns:
         st.error("오류: 'age_group' 컬럼이 데이터에 없습니다. 전처리 단계를 확인하세요.")
         return
 
@@ -117,11 +118,11 @@ def generate_summary_tables(df):
         st.subheader(f"💔 총 사망자 수: {total_deaths}명")
         st.caption("사망자 세부 분석")
         
-        age_death_summary = df.groupby('age_group')['Death'].sum().reset_index()
+        age_death_summary = df_raw.groupby('age_group')['Death'].sum().reset_index()
         age_death_summary = age_death_summary.rename(columns={'age_group': '연령대 (Age Group)', 'Death': '사망자 수'})
         st.dataframe(age_death_summary.set_index('연령대 (Age Group)'))
             
-        class_death_summary = df.groupby('pclass')['Death'].sum().reset_index()
+        class_death_summary = df_raw.groupby('pclass')['Death'].sum().reset_index()
         class_death_summary = class_death_summary.rename(columns={'pclass': '선실 등급', 'Death': '사망자 수'})
         class_death_summary['선실 등급'] = class_death_summary['선실 등급'].astype(str) + '등급'
         st.caption("선실 등급별 사망자 수")
@@ -131,11 +132,11 @@ def generate_summary_tables(df):
         st.subheader(f"✅ 총 구조된 사람 수: {total_survival}명")
         st.caption("구조자 세부 분석")
 
-        age_survival_summary = df.groupby('age_group')['Survival'].sum().reset_index()
+        age_survival_summary = df_raw.groupby('age_group')['Survival'].sum().reset_index()
         age_survival_summary = age_survival_summary.rename(columns={'age_group': '연령대 (Age Group)', 'Survival': '구조자 수'})
         st.dataframe(age_survival_summary.set_index('연령대 (Age Group)'))
             
-        class_survival_summary = df.groupby('pclass')['Survival'].sum().reset_index()
+        class_survival_summary = df_raw.groupby('pclass')['Survival'].sum().reset_index()
         class_survival_summary = class_survival_summary.rename(columns={'pclass': '선실 등급', 'Survival': '구조자 수'})
         class_survival_summary['선실 등급'] = class_survival_summary['선실 등급'].astype(str) + '등급'
         st.caption("선실 등급별 구조자 수")
@@ -143,20 +144,21 @@ def generate_summary_tables(df):
         
     st.markdown("---")
 
-# --- 시각화 함수 ---
-def plot_counts(df, category, target, target_name, plot_type, extreme_select):
+# --- 시각화 함수 (df_raw 사용하도록 수정) ---
+def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select):
     """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다."""
     
-    if 'age_group' not in df.columns:
+    if 'age_group' not in df_raw.columns:
         st.error("오류: 'age_group' 컬럼이 데이터에 없습니다. 전처리 단계를 확인하세요.")
         return
 
     if category == 'age':
-        plot_data = df.groupby('age_group')[target].sum().reset_index()
+        # 이상치 처리가 안 된 data_raw 사용
+        plot_data = df_raw.groupby('age_group')[target].sum().reset_index()
         x_col = 'age_group'
         x_label = 'Age Group'
     else: # pclass
-        plot_data = df.groupby(category)[target].sum().reset_index()
+        plot_data = df_raw.groupby(category)[target].sum().reset_index()
         x_col = category
         x_label = 'Passenger Class'
         plot_data[x_col] = plot_data[x_col].astype(str) + ' Class'
@@ -207,6 +209,7 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
         st.error(f"🥉 **{extreme_label}:** {extreme_data.reset_index(drop=True)[x_col].iloc[0]} ({min_val})")
 
 # --- 상관관계 분석 함수 ---
+# 이 함수는 age와 fare의 정규화된 값을 사용해야 하므로, data 사용 유지
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다."""
     
@@ -286,7 +289,7 @@ def calculate_correlation(df):
     
     return corr_matrix, max_corr, min_corr
 
-# --- 분위수 및 이상치 계산/출력 함수 (박스 플롯 메뉴에서만 출력) ---
+# --- 분위수 및 이상치 계산/출력 함수 ---
 def analyze_quantiles_and_outliers(df_raw):
     """주어진 원본 데이터프레임의 'age'와 'fare'에 대한 분위수와 이상치 개수를 계산하고 출력합니다."""
     st.markdown("---")
@@ -344,14 +347,18 @@ def main():
     if data is None:
         return
         
-    # 이상치/분위수 분석을 위해 초기 결측치만 처리된 원본 데이터 복사
+    # 이상치/분위수 분석 및 연령대 집계를 위해 초기 결측치만 처리된 원본 데이터 복사
     data_raw = handle_missing_data(data.copy())
     
-    # 2. 전처리 단계 (이상치 처리, 재결측치 처리, 컬럼 생성, 정규화)
+    # 여기서 연령 그룹 컬럼을 data_raw에 생성 (이상치 처리 전)
+    data_raw = create_analysis_columns(data_raw) 
+    
+    # 2. 전처리 단계 (이상치 처리, 재결측치 처리, 정규화) - data_raw와 분리
+    # data에도 Death/Survival 컬럼이 필요하므로 다시 생성
     data = handle_missing_data(data)
     data = handle_outliers(data)
     data = handle_missing_data(data)
-    data = create_analysis_columns(data)
+    data = create_analysis_columns(data) # Death/Survival 컬럼만 재사용
     data = normalize_data(data)
 
     st.sidebar.title("메뉴 선택")
@@ -365,7 +372,8 @@ def main():
     
     # 3. 메뉴별 기능 호출
     if graph_type == '종합 요약 (표)':
-        generate_summary_tables(data)
+        # 연령대 정보가 정확한 data_raw를 사용합니다.
+        generate_summary_tables(data_raw)
 
     elif graph_type == '사망/구조자 수 분석 (그래프)':
         analysis_theme_kor = st.sidebar.radio(
@@ -406,8 +414,8 @@ def main():
             ('가장 높은 지점', '가장 낮은 지점'),
             index=0 
         )
-        
-        plot_counts(data, selected_category_col, target_col, target_name, plot_style, extreme_select_kor)
+        # 연령대 정보가 정확한 data_raw를 사용합니다.
+        plot_counts(data_raw, selected_category_col, target_col, target_name, plot_style, extreme_select_kor)
 
     elif graph_type == '상관관계 분석 (그래프)':
         
@@ -423,11 +431,13 @@ def main():
             ('Scatter Plot', 'Heatmap')
         )
         
+        # 정규화된 값이 필요한 상관관계 분석에는 data를 사용합니다.
         plot_correlation(data, corr_type_kor, corr_plot_type)
     
     elif graph_type == '박스 플롯':
+        # 정규화된 값이 필요한 박스 플롯에는 data를 사용합니다.
         plot_boxplot(data)
-        # 박스 플롯 메뉴를 선택했을 때만 분위수 및 이상치 분석 결과를 출력합니다.
+        # 박스 플롯 메뉴에서만 분위수 및 이상치 분석 결과를 출력합니다.
         analyze_quantiles_and_outliers(data_raw)
 
 
