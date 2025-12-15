@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
 
 # 파일 경로 설정
 FILE_PATH = "titanic.xls"
@@ -33,19 +34,62 @@ def load_data(file_path):
     # 결측치 처리 및 타입 변환
     df_clean['pclass'] = df_clean['pclass'].fillna(df_clean['pclass'].mode()[0]).astype(int)
     df_clean['survived'] = df_clean['survived'].fillna(0).astype(int)
-    
     df_clean['age'] = df_clean['age'].fillna(df_clean['age'].median())
     df_clean['fare'] = df_clean['fare'].fillna(df_clean['fare'].median())
     
-    # 연령 그룹 생성 (라벨은 영어로 유지)
-    bins = [0, 10, 20, 30, 40, 50, 60, 100]
-    labels = ['0-10s', '10-20s', '20-30s', '30-40s', '40-50s', '50-60s', '60s+']
-    df_clean['age_group'] = pd.cut(df_clean['age'], bins=bins, labels=labels, right=False)
-
-    df_clean['Death'] = 1 - df_clean['survived']
-    df_clean['Survival'] = df_clean['survived']
-    
     return df_clean
+
+# --- 결측치 처리 ---
+def handle_missing_data(df):
+    """결측치 처리 함수"""
+    df['pclass'] = df['pclass'].fillna(df['pclass'].mode()[0]).astype(int)
+    df['survived'] = df['survived'].fillna(0).astype(int)
+    df['age'] = df['age'].fillna(df['age'].median())
+    df['fare'] = df['fare'].fillna(df['fare'].median())
+    return df
+
+# --- 이상치 처리 (IQR 방법) ---
+def handle_outliers(df):
+    """이상치 처리 함수 (IQR 방법)"""
+    # 'age' 변수에 대한 이상치 처리
+    Q1_age = df['age'].quantile(0.25)
+    Q3_age = df['age'].quantile(0.75)
+    IQR_age = Q3_age - Q1_age
+    lower_bound_age = Q1_age - 1.5 * IQR_age
+    upper_bound_age = Q3_age + 1.5 * IQR_age
+
+    # 'fare' 변수에 대한 이상치 처리
+    Q1_fare = df['fare'].quantile(0.25)
+    Q3_fare = df['fare'].quantile(0.75)
+    IQR_fare = Q3_fare - Q1_fare
+    lower_bound_fare = Q1_fare - 1.5 * IQR_fare
+    upper_bound_fare = Q3_fare + 1.5 * IQR_fare
+
+    # 이상치 범위 밖의 데이터를 NaN 처리
+    df['age'] = np.where((df['age'] < lower_bound_age) | (df['age'] > upper_bound_age), np.nan, df['age'])
+    df['fare'] = np.where((df['fare'] < lower_bound_fare) | (df['fare'] > upper_bound_fare), np.nan, df['fare'])
+
+    return df
+
+# --- 정규화 ---
+def normalize_data(df):
+    """정규화 함수 (Min-Max Scaling)"""
+    scaler = MinMaxScaler()
+    df[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
+    return df
+
+# --- 박스 플롯 함수 ---
+def plot_boxplot(df):
+    """박스 플롯 시각화"""
+    st.subheader("📊 박스 플롯: 나이 (Age)와 요금 (Fare)")
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    sns.boxplot(data=df[['age', 'fare']], ax=ax, palette="Set2")
+    ax.set_title("Box Plot of Age and Fare", fontsize=14)
+    ax.set_ylabel('Value', fontsize=12)
+    
+    st.pyplot(fig, use_container_width=True)
 
 # --- 종합 요약에 총 인원 추가 ---
 def generate_summary_tables(df):
@@ -244,16 +288,20 @@ def calculate_correlation(df):
 
 # --- 메인 앱 로직 ---
 def main():
-    
     data = load_data(FILE_PATH)
     if data is None:
         return
+
+    # 데이터 전처리 과정
+    data = handle_missing_data(data)
+    data = handle_outliers(data)
+    data = normalize_data(data)
 
     st.sidebar.title("메뉴 선택")
     
     graph_type = st.sidebar.radio(
         "📊 분석 유형 선택",
-        ('종합 요약 (표)', '사망/구조자 수 분석 (그래프)', '상관관계 분석 (그래프)')
+        ('종합 요약 (표)', '사망/구조자 수 분석 (그래프)', '상관관계 분석 (그래프)', '박스 플롯')
     )
     
     st.sidebar.markdown("---")
@@ -262,7 +310,6 @@ def main():
         generate_summary_tables(data)
 
     elif graph_type == '사망/구조자 수 분석 (그래프)':
-        
         analysis_theme_kor = st.sidebar.radio(
             "🔎 분석 주제 선택",
             ('사망자 수', '구조자 수')
@@ -319,6 +366,9 @@ def main():
         )
         
         plot_correlation(data, corr_type_kor, corr_plot_type)
+    
+    elif graph_type == '박스 플롯':
+        plot_boxplot(data)
 
 if __name__ == "__main__":
     main()
