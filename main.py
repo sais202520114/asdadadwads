@@ -8,27 +8,31 @@ import matplotlib.font_manager as fm
 # 사용자님이 요청하신 파일명으로 정확히 설정
 FILE_PATH = "titanic.xls"
 
-# --- Matplotlib 한글 폰트 설정 (최종 보강 버전) ---
+# --- Matplotlib 한글 폰트 설정 (가장 안정적인 방식) ---
 plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
 
 font_name = None
-preferred_fonts = ['NanumGothic', 'Malgun Gothic', 'AppleGothic', 'sans-serif']
+# 나눔고딕, 맑은고딕 등 선호 폰트 검색
+preferred_fonts = ['NanumGothic', 'Malgun Gothic', 'AppleGothic']
 
+# 시스템 폰트 목록에서 선호 폰트 찾기
 for font_path in fm.findSystemFonts(fontext='ttf'):
     font_prop = fm.FontProperties(fname=font_path)
     if font_prop.get_name() in preferred_fonts:
         font_name = font_prop.get_name()
         break
-    # 맑은 고딕 경로 직접 확인 (Windows 환경 대비)
     if 'Malgun' in font_prop.get_name():
         font_name = 'Malgun Gothic'
         break
 
+# 찾은 폰트 설정, 없으면 sans-serif 사용 (Streamlit 환경 기본 폰트)
 if font_name:
     plt.rcParams['font.family'] = font_name
+    st.info(f"사용된 한글 폰트: {font_name}")
 else:
+    # 폰트가 없는 환경을 대비하여 경고 메시지 출력
     plt.rcParams['font.family'] = 'sans-serif'
-    st.warning("경고: 시스템에서 적절한 한글 폰트(나눔고딕, 맑은 고딕)를 찾을 수 없습니다. 그래프의 한글이 깨질 수 있습니다.")
+    st.warning("경고: 적절한 한글 폰트를 찾을 수 없습니다. (NanumGothic, Malgun Gothic 권장)")
 
 
 # Streamlit 페이지 설정
@@ -57,7 +61,7 @@ def load_data(file_path):
     df_clean['age'] = df_clean['age'].fillna(df_clean['age'].median())
     df_clean['fare'] = df_clean['fare'].fillna(df_clean['fare'].median())
     
-    # Age Group 생성 (표 및 카운팅 그래프에만 사용)
+    # Age Group 생성
     bins = [0, 10, 20, 30, 40, 50, 60, 100]
     labels = ['0-10대', '10-20대', '20-30대', '30-40대', '40-50대', '50-60대', '60대 이상']
     df_clean['age_group'] = pd.cut(df_clean['age'], bins=bins, labels=labels, right=False)
@@ -68,28 +72,24 @@ def load_data(file_path):
     
     return df_clean
 
-# --- 요약 표 출력 함수 ---
+# --- 요약 표 출력 함수 (변경 없음) ---
 def generate_summary_tables(df):
     st.title("타이타닉 데이터 분석 종합 요약 표")
     st.markdown(f"**분석 데이터 파일명:** `{FILE_PATH}`")
     st.markdown("---")
     
-    # (표 출력 코드는 변경 없음. 정상 작동 확인됨.)
-    # 1. 사망자 요약
     total_deaths = df['Death'].sum()
     st.header(f"💔 총 사망자 수: {total_deaths}명")
     st.subheader("사망자 세부 분석 표")
     
     col_d1, col_d2 = st.columns(2)
     
-    # 연령별 사망자 표
     age_death_summary = df.groupby('age_group')['Death'].sum().reset_index()
     age_death_summary = age_death_summary.rename(columns={'age_group': '연령대', 'Death': '사망자 수'})
     with col_d1:
         st.caption("연령별 사망자 수")
         st.dataframe(age_death_summary.set_index('연령대'))
         
-    # 클래스별 사망자 표
     class_death_summary = df.groupby('pclass')['Death'].sum().reset_index()
     class_death_summary = class_death_summary.rename(columns={'pclass': '선실 등급', 'Death': '사망자 수'})
     class_death_summary['선실 등급'] = class_death_summary['선실 등급'].astype(str) + '등급'
@@ -99,21 +99,18 @@ def generate_summary_tables(df):
 
     st.markdown("---")
 
-    # 2. 구조자 요약
     total_survival = df['Survival'].sum()
     st.header(f"✅ 총 구조된 사람 수: {total_survival}명")
     st.subheader("구조자 세부 분석 표")
     
     col_s1, col_s2 = st.columns(2)
 
-    # 연령별 구조자 표
     age_survival_summary = df.groupby('age_group')['Survival'].sum().reset_index()
     age_survival_summary = age_survival_summary.rename(columns={'age_group': '연령대', 'Survival': '구조자 수'})
     with col_s1:
         st.caption("연령별 구조자 수")
         st.dataframe(age_survival_summary.set_index('연령대'))
         
-    # 클래스별 구조자 표
     class_survival_summary = df.groupby('pclass')['Survival'].sum().reset_index()
     class_survival_summary = class_survival_summary.rename(columns={'pclass': '선실 등급', 'Survival': '구조자 수'})
     class_survival_summary['선실 등급'] = class_survival_summary['선실 등급'].astype(str) + '등급'
@@ -128,7 +125,6 @@ def generate_summary_tables(df):
 def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select):
     """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다."""
     
-    # 데이터 준비
     if category == 'age':
         plot_data = df.groupby('age_group')[target].sum().reset_index()
         x_col = 'age_group'
@@ -137,23 +133,20 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
         plot_data = df.groupby(category)[target].sum().reset_index()
         x_col = category
         x_label_kor = '선실 등급'
-        # pclass를 한글 레이블로 변환 (그래프용)
-        plot_data[x_col] = plot_data[x_col].astype(str).replace({'1': '1', '2': '2', '3': '3'}) + '등급'
+        plot_data[x_col] = plot_data[x_col].astype(str) + '등급'
 
-    # 총합계 출력
     total_sum = plot_data[target].sum()
     st.info(f"**{x_label_kor}별 {target_name_kor} 총 합계:** `{total_sum}`명")
     
     st.subheader(f"📊 {target_name_kor} ({x_label_kor}별)")
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    # === 크기 수정 ===
+    fig, ax = plt.subplots(figsize=(7, 5))
     
     # 1. 그래프 그리기
     if plot_type == '막대 그래프':
-        # 요청하신 청량한 파란색 그라데이션 ('YlGnBu') 적용
         sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='YlGnBu', errorbar=None)
         
-        # 막대 위에 숫자 출력
         for p in ax.patches:
             ax.annotate(f'{int(p.get_height())}', 
                         (p.get_x() + p.get_width() / 2., p.get_height()), 
@@ -163,10 +156,8 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
                         fontsize=10)
             
     elif plot_type == '꺾은선 그래프':
-        # 꺾은선 그래프는 선명한 파란색 단일 색상으로 지정 (가독성 고려)
         sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='blue')
         
-        # 점 위에 숫자 출력
         for x, y in zip(plot_data[x_col], plot_data[target]):
             ax.annotate(f'{int(y)}', (x, y), 
                         textcoords="offset points", 
@@ -174,8 +165,7 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
                         ha='center', 
                         fontsize=10)
         
-    # 2. 그래프 제목 및 라벨 (한글 설정)
-    ax.set_title(f"{x_label_kor}별 {target_name_kor} ({plot_type})", fontsize=15)
+    ax.set_title(f"{x_label_kor}별 {target_name_kor} ({plot_type})", fontsize=13)
     ax.set_xlabel(x_label_kor)
     ax.set_ylabel(target_name_kor)
     st.pyplot(fig) 
@@ -184,7 +174,6 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
     max_val = plot_data[target].max()
     min_val = plot_data[target].min()
     
-    # 지점 선택에 따라 결과 출력
     if extreme_select == '가장 높은 지점':
         extreme_data = plot_data[plot_data[target] == max_val]
         extreme_label = '가장 높은 지점'
@@ -198,9 +187,6 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다."""
     
-    # === 핵심 수정 부분: 상관관계 분석에 필요한 수치형 데이터만 선택 ===
-    # 'pclass', 'survived', 'age', 'fare'만 사용
-    # 'sex', 'age_group' 등 문자열/범주형 데이터는 제외
     numeric_df = df[['survived', 'pclass', 'age', 'fare']].copy()
     
     corr_matrix, max_corr, min_corr = calculate_correlation(numeric_df)
@@ -208,10 +194,10 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == '히트맵':
-        # 1. 히트맵 시각화 (청량한 파란색 그라데이션 'YlGnBu' 적용)
-        fig, ax = plt.subplots(figsize=(10, 8))
+        # 1. 히트맵 시각화
+        # === 크기 수정 ===
+        fig, ax = plt.subplots(figsize=(7, 7))
         
-        # 히트맵의 x/y 라벨을 한글로 변경 (선택 사항)
         col_names = ['생존 여부', '선실 등급', '나이', '운임']
         corr_matrix.columns = col_names
         corr_matrix.index = col_names
@@ -226,7 +212,7 @@ def plot_correlation(df, corr_type, plot_type):
             linecolor='black',
             ax=ax
         )
-        ax.set_title("타이타닉 속성 간 상관관계 히트맵", fontsize=15)
+        ax.set_title("타이타닉 속성 간 상관관계 히트맵", fontsize=13)
         st.pyplot(fig) 
         
         # 2. 강한 상관관계 출력
@@ -246,57 +232,76 @@ def plot_correlation(df, corr_type, plot_type):
                 st.warning("분석할 수 있는 유효한 음의 상관관계 쌍이 없습니다.")
 
     elif plot_type == '산점도':
-        # 산점도는 가장 강한 상관관계를 가진 변수 쌍에 대해서만 시각화
+        # 산점도 시각화
+        
         if corr_type == '양의 상관관계':
+            # === 상관관계 쌍 추출 로직 보강 ===
             if max_corr.empty:
-                st.warning("분석할 수 있는 양의 상관관계 쌍이 없습니다.")
-                return
-            pair = max_corr.index[0]
-            title_prefix = "양의 상관관계"
-        else:
-            if min_corr.empty:
-                st.warning("분석할 수 있는 음의 상관관계 쌍이 없습니다.")
-                return
-            pair = min_corr.index[0]
-            title_prefix = "음의 상관관계"
+                st.warning("분석할 수 있는 양의 상관관계 쌍이 없습니다. (운임-나이, 운임-생존 여부 등 확인)")
+                # Fallback: Fare vs Age (일반적으로 양의 상관관계)
+                x_var, y_var = 'fare', 'age'
+                title_prefix = "양의 상관관계 (기본: 운임 vs 나이)"
+            else:
+                pair = max_corr.index[0]
+                x_var, y_var = pair[0], pair[1]
+                title_prefix = "양의 상관관계"
 
-        st.subheader(f"산점도: {title_prefix} - {pair[0]} vs {pair[1]}")
-        fig, ax = plt.subplots(figsize=(8, 6))
-        # 산점도는 hue를 기준으로 색을 나누기 때문에, 기본 'deep' 팔레트 유지
-        sns.scatterplot(x=pair[0], y=pair[1], data=df, ax=ax, hue='survived', palette='deep') 
-        ax.set_title(f"{pair[0]}와 {pair[1]}의 {title_prefix} 관계 (생존 여부 기준)", fontsize=15)
+        else: # 음의 상관관계
+            if min_corr.empty:
+                st.warning("분석할 수 있는 음의 상관관계 쌍이 없습니다. (선실 등급-운임, 선실 등급-생존 여부 등 확인)")
+                # Fallback: Pclass vs Fare (일반적으로 음의 상관관계)
+                x_var, y_var = 'pclass', 'fare'
+                title_prefix = "음의 상관관계 (기본: 선실 등급 vs 운임)"
+            else:
+                pair = min_corr.index[0]
+                x_var, y_var = pair[0], pair[1]
+                title_prefix = "음의 상관관계"
+
+        st.subheader(f"산점도: {title_prefix} - {x_var} vs {y_var}")
+        # === 크기 수정 ===
+        fig, ax = plt.subplots(figsize=(7, 5))
+        
+        sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep') 
+        
+        ax.set_title(f"{x_var}와 {y_var}의 {title_prefix} 관계 (생존 여부 기준)", fontsize=13)
+        ax.set_xlabel(x_var)
+        ax.set_ylabel(y_var)
         st.pyplot(fig) 
 
 def calculate_correlation(df):
-    """상관 행렬을 계산하고 가장 강한 양/음의 상관관계를 추출합니다."""
+    """상관 행렬을 계산하고 가장 강한 양/음의 상관관계를 추출합니다. (1, -1만 나오는 문제 해결)"""
     corr_matrix = df.corr()
     
-    # 2. 상관관계 1만 나오는 문제 해결: 대각선 값을 NaN으로 명시적으로 채우기
+    # 2. 대각선 값 (자기 자신과의 상관관계)을 NaN으로 명시적으로 채우기
     np.fill_diagonal(corr_matrix.values, np.nan) 
     
-    # 유효한 값만 추출 및 정렬
+    # 상삼각 행렬만 추출하고 1 또는 -1에 가까운 값 제외 (극단적인 1/-1 회피)
     corr_unstacked = corr_matrix.unstack().sort_values(ascending=False).drop_duplicates()
-    valid_corr = corr_unstacked.dropna()
     
+    # 절대값이 1이 아닌 (즉, 자기 자신이 아닌) 유효한 상관관계 값만 필터링
+    valid_corr = corr_unstacked.dropna()
+    valid_corr = valid_corr[abs(valid_corr) < 0.9999] # 1에 가까운 값 제거
+
     max_corr = valid_corr.head(1)
     min_corr = valid_corr.tail(1)
     
+    # 상관관계가 없는 경우 빈 시리즈 반환
+    if max_corr.empty and not corr_unstacked.empty:
+         # 예외적인 경우를 대비하여 가장 큰/작은 값 재확인 (극단적인 경우 대비)
+        max_corr = corr_unstacked.dropna().head(1)
+        min_corr = corr_unstacked.dropna().tail(1)
+    
     return corr_matrix, max_corr, min_corr
 
-# --- 메인 앱 로직 ---
+# --- 메인 앱 로직 (변경 없음) ---
 def main():
     
     data = load_data(FILE_PATH)
     if data is None:
         return
 
-    # ------------------
-    # 1. 사이드바 메뉴 구성
-    # ------------------
-
     st.sidebar.title("메뉴 선택")
     
-    # 1단계: 메인 그래프 선택 (표 메뉴 추가)
     graph_type = st.sidebar.radio(
         "📊 분석 유형 선택",
         ('종합 요약 (표)', '사망자/구조자 수 분석 (그래프)', '상관관계 분석 (그래프)')
@@ -304,30 +309,23 @@ def main():
     
     st.sidebar.markdown("---")
     
-    # ------------------
-    # 2. 메인 화면 구성
-    # ------------------
-    
     if graph_type == '종합 요약 (표)':
         generate_summary_tables(data)
 
     elif graph_type == '사망자/구조자 수 분석 (그래프)':
         
-        # 2단계: 분석 주제 (사망자 수 또는 구조자 수)
         analysis_theme_kor = st.sidebar.radio(
             "🔎 분석 주제 선택",
             ('사망자 수', '구조된 사람 수')
         )
 
-        # 타겟 설정
         if analysis_theme_kor == '사망자 수':
             target_col = 'Death'
             target_name_kor = '사망자 수'
-        else: # 구조된 사람 수
+        else: 
             target_col = 'Survival'
             target_name_kor = '구조된 사람 수'
             
-        # 3단계: 세부 카테고리 선택
         category_options = {
             f'연령별 {target_name_kor}': 'age',
             f'클래스별 {target_name_kor}': 'pclass'
@@ -342,7 +340,6 @@ def main():
         
         st.sidebar.markdown("---")
         
-        # 4단계: 시각화 유형 선택 (막대/꺾은선)
         plot_style = st.sidebar.radio(
             "📈 시각화 유형 선택",
             ('막대 그래프', '꺾은선 그래프')
@@ -350,20 +347,17 @@ def main():
         
         st.sidebar.markdown("---")
 
-        # 5단계: 최대/최소 지점 선택 (기본: 가장 높은 지점)
         extreme_select = st.sidebar.radio(
             "⬆️ 지점 강조 선택",
             ('가장 높은 지점', '가장 낮은 지점'),
-            index=0 # 기본적으로 가장 높은 지점을 출력
+            index=0 
         )
         
-        # 메인 화면 출력
         plot_counts(data, selected_category_col, target_col, target_name_kor, plot_style, extreme_select)
 
 
     elif graph_type == '상관관계 분석 (그래프)':
         
-        # 2단계: 양/음의 상관관계 선택 (맨 아래 요구사항)
         corr_type = st.sidebar.radio(
             "🔗 상관관계 방향 선택",
             ('양의 상관관계', '음의 상관관계')
@@ -371,13 +365,11 @@ def main():
         
         st.sidebar.markdown("---")
         
-        # 3단계: 시각화 유형 선택 (산점도/히트맵)
         corr_plot_type = st.sidebar.radio(
             "📊 시각화 유형 선택",
             ('산점도', '히트맵')
         )
         
-        # 메인 화면 출력
         plot_correlation(data, corr_type, corr_plot_type)
         
         
