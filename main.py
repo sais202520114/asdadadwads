@@ -8,7 +8,7 @@ import matplotlib.font_manager as fm
 # 사용자님이 요청하신 파일명으로 정확히 설정
 FILE_PATH = "titanic.xls"
 
-# --- Matplotlib 한글 폰트 설정 (최종, 가장 확실한 방식) ---
+# --- Matplotlib 한글 폰트 설정 (최종, 보수적 방식 유지) ---
 plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
 
 # 시스템에 설치된 나눔고딕 폰트 검색 및 설정
@@ -24,17 +24,14 @@ for font_path in fm.findSystemFonts(fontpaths=None, fontext='ttf'):
 if not font_name:
     preferred_fonts = ['Malgun Gothic', 'AppleGothic', 'sans-serif']
     for p_font in preferred_fonts:
-        if p_font in plt.rcParams['font.family']:
-             font_name = p_font
-             break
-        # Windows의 경우
         if p_font == 'Malgun Gothic' and 'C:/Windows/Fonts/malgun.ttf' in fm.findSystemFonts(fontext='ttf'):
              font_name = 'Malgun Gothic'
              break
-        # Mac의 경우
         if p_font == 'AppleGothic':
              font_name = 'AppleGothic'
              break
+        if p_font == 'sans-serif':
+             font_name = 'sans-serif'
 
 if font_name:
     plt.rcParams['font.family'] = font_name
@@ -165,8 +162,8 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
     
     # 1. 그래프 그리기
     if plot_type == '막대 그래프':
-        # 요청하신 대로 파란색 그라데이션 ('Blues_d': Dark Blues) 적용
-        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='Blues_d', errorbar=None)
+        # 요청하신 대로 밝고 화사한 파란색 그라데이션 ('light:blue') 적용
+        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='light:blue', errorbar=None)
         
         # 막대 위에 숫자 출력
         for p in ax.patches:
@@ -179,8 +176,8 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
                         fontsize=10)
             
     elif plot_type == '꺾은선 그래프':
-        # 꺾은선 그래프는 파란색 계열 중 진한 색상 하나로 통일 (가독성 고려)
-        sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='blue')
+        # 꺾은선 그래프는 밝은 파란색 계열 중 단일 색상으로 지정 (가독성 고려)
+        sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='#4682B4') # Steel Blue
         
         # 점 위에 숫자 출력
         for x, y in zip(plot_data[x_col], plot_data[target]):
@@ -220,13 +217,13 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == '히트맵':
-        # 1. 히트맵 시각화 (파란색 그라데이션 'Blues' 적용)
+        # 1. 히트맵 시각화 (밝은 파란색 그라데이션 'light:blue' 적용)
         fig, ax = plt.subplots(figsize=(10, 8))
         sns.heatmap(
             corr_matrix, 
             annot=True, 
             fmt=".2f", 
-            cmap='Blues', # 색상 변경
+            cmap='light:blue', # 색상 변경
             cbar=True,
             linewidths=0.5,
             linecolor='black',
