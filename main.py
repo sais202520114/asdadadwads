@@ -81,7 +81,7 @@ def normalize_data(df):
     df[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
     return df
 
-# --- 박스 플롯 함수 (크기 수정됨: 4x3) ---
+# --- 박스 플롯 함수 (크기 재수정 및 강제 고정: 4x3, use_container_width=False) ---
 def plot_boxplot(df):
     """박스 플롯 시각화"""
     st.subheader("📊 박스 플롯: 나이 (Age)와 요금 (Fare)")
@@ -92,7 +92,7 @@ def plot_boxplot(df):
     ax.set_title("Box Plot of Age and Fare (Normalized)", fontsize=10)
     ax.set_ylabel('Normalized Value', fontsize=8)
     
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, use_container_width=False) 
 
 # --- 종합 요약에 총 인원 추가 ---
 def generate_summary_tables(df):
@@ -142,7 +142,7 @@ def generate_summary_tables(df):
         
     st.markdown("---")
 
-# --- 시각화 함수 (크기 수정됨: 5x3) ---
+# --- 시각화 함수 (크기 수정 및 강제 고정: 5x3, use_container_width=False) ---
 def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다."""
     
@@ -165,7 +165,6 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     
     st.subheader(f"📊 {target_name} by {x_label}")
 
-    # figsize를 (5, 3)으로 조정
     fig, ax = plt.subplots(figsize=(5, 3)) 
     
     if plot_type == 'Bar Chart':
@@ -192,7 +191,7 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=10)
     ax.set_xlabel(x_label, fontsize=8)
     ax.set_ylabel(target_name, fontsize=8)
-    st.pyplot(fig, use_container_width=False) 
+    st.pyplot(fig, use_container_width=False) # False로 변경
     
     max_val = plot_data[target].max()
     min_val = plot_data[target].min()
@@ -206,7 +205,7 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
         extreme_label = '가장 낮은 지점'
         st.error(f"🥉 **{extreme_label}:** {extreme_data.reset_index(drop=True)[x_col].iloc[0]} ({min_val})")
 
-# --- 상관관계 분석 함수 수정 (크기 수정됨: Scatter Plot은 5x3) ---
+# --- 상관관계 분석 함수 수정 (크기 수정 및 강제 고정: Heatmap 5x5, Scatter Plot 5x3, use_container_width=False) ---
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다. (내부 라벨은 영어)"""
     
@@ -218,7 +217,6 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == 'Heatmap':
-        # Heatmap은 (6, 6) 또는 (5, 5)와 같은 정사각형이 좋으므로 (5, 5)로 조정
         fig, ax = plt.subplots(figsize=(5, 5))
         
         col_names = ['Survived', 'Age', 'Fare']
@@ -237,7 +235,7 @@ def plot_correlation(df, corr_type, plot_type):
             ax=ax
         )
         ax.set_title("Correlation Heatmap of Titanic Attributes", fontsize=10)
-        st.pyplot(fig, use_container_width=False) 
+        st.pyplot(fig, use_container_width=False) # False로 변경
         
         if corr_type == '양의 상관관계':
             if not max_corr.empty:
@@ -257,7 +255,6 @@ def plot_correlation(df, corr_type, plot_type):
     elif plot_type == 'Scatter Plot':
         st.subheader(f"산점도: pclass별 연령과 요금 (Normalized)")
         
-        # figsize를 (5, 3)으로 조정
         fig, ax = plt.subplots(figsize=(5, 3))
         
         df_plot = df.copy()
@@ -269,7 +266,7 @@ def plot_correlation(df, corr_type, plot_type):
         ax.set_xlabel('Age (Normalized)', fontsize=8)
         ax.set_ylabel('Fare (Normalized)', fontsize=8)
         
-        st.pyplot(fig, use_container_width=False) 
+        st.pyplot(fig, use_container_width=False) # False로 변경
 
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 비자명 상관관계 쌍을 추출합니다."""
