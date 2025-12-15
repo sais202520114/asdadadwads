@@ -29,12 +29,13 @@ def load_data(file_path):
         st.error(f"오류: 파일 경로('{FILE_PATH}')를 확인하거나 'xlrd' 라이브러리를 설치해 주세요. ({e})")
         return None
     
+    # pclass, survived, sex, age, fare 컬럼만 사용
     df_clean = df[['pclass', 'survived', 'sex', 'age', 'fare']].copy()
     return df_clean
 
-# --- 결측치 처리 (중복 제거 및 통합) ---
+# --- 결측치 처리 (mode/median으로 채우기) ---
 def handle_missing_data(df):
-    """결측치 처리 함수: mode/median으로 채우기"""
+    """결측치 처리 함수"""
     df['pclass'] = df['pclass'].fillna(df['pclass'].mode()[0]).astype(int)
     df['survived'] = df['survived'].fillna(0).astype(int)
     df['age'] = df['age'].fillna(df['age'].median())
@@ -64,7 +65,7 @@ def handle_outliers(df):
 
 # --- 보조 분석 컬럼 생성 (Death, Survival, age_group) ---
 def create_analysis_columns(df):
-    """분석에 필요한 추가 컬럼 (Death, Survival, age_group)을 생성합니다."""
+    """분석에 필요한 추가 컬럼을 생성합니다."""
     df['Death'] = 1 - df['survived']
     df['Survival'] = df['survived']
     
@@ -81,7 +82,7 @@ def normalize_data(df):
     df[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
     return df
 
-# --- 박스 플롯 함수 (크기 재수정 및 강제 고정: 4x3, use_container_width=False) ---
+# --- 박스 플롯 함수 ---
 def plot_boxplot(df):
     """박스 플롯 시각화"""
     st.subheader("📊 박스 플롯: 나이 (Age)와 요금 (Fare)")
@@ -142,7 +143,7 @@ def generate_summary_tables(df):
         
     st.markdown("---")
 
-# --- 시각화 함수 (크기 수정 및 강제 고정: 5x3, use_container_width=False) ---
+# --- 시각화 함수 ---
 def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다."""
     
@@ -191,7 +192,7 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=10)
     ax.set_xlabel(x_label, fontsize=8)
     ax.set_ylabel(target_name, fontsize=8)
-    st.pyplot(fig, use_container_width=False) # False로 변경
+    st.pyplot(fig, use_container_width=False) 
     
     max_val = plot_data[target].max()
     min_val = plot_data[target].min()
@@ -205,9 +206,9 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
         extreme_label = '가장 낮은 지점'
         st.error(f"🥉 **{extreme_label}:** {extreme_data.reset_index(drop=True)[x_col].iloc[0]} ({min_val})")
 
-# --- 상관관계 분석 함수 수정 (크기 수정 및 강제 고정: Heatmap 5x5, Scatter Plot 5x3, use_container_width=False) ---
+# --- 상관관계 분석 함수 ---
 def plot_correlation(df, corr_type, plot_type):
-    """상관관계를 산점도 또는 히트맵으로 그립니다. (내부 라벨은 영어)"""
+    """상관관계를 산점도 또는 히트맵으로 그립니다."""
     
     numeric_df = df[['survived', 'age', 'fare']].copy() 
     numeric_df.dropna(inplace=True) 
@@ -235,7 +236,7 @@ def plot_correlation(df, corr_type, plot_type):
             ax=ax
         )
         ax.set_title("Correlation Heatmap of Titanic Attributes", fontsize=10)
-        st.pyplot(fig, use_container_width=False) # False로 변경
+        st.pyplot(fig, use_container_width=False) 
         
         if corr_type == '양의 상관관계':
             if not max_corr.empty:
@@ -266,7 +267,7 @@ def plot_correlation(df, corr_type, plot_type):
         ax.set_xlabel('Age (Normalized)', fontsize=8)
         ax.set_ylabel('Fare (Normalized)', fontsize=8)
         
-        st.pyplot(fig, use_container_width=False) # False로 변경
+        st.pyplot(fig, use_container_width=False) 
 
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 비자명 상관관계 쌍을 추출합니다."""
@@ -285,16 +286,72 @@ def calculate_correlation(df):
     
     return corr_matrix, max_corr, min_corr
 
+# --- 분위수 및 이상치 계산/출력 함수 (맨 아래에 출력) ---
+def analyze_quantiles_and_outliers(df_raw):
+    """주어진 원본 데이터프레임의 'age'와 'fare'에 대한 분위수와 이상치 개수를 계산하고 출력합니다."""
+    st.markdown("---")
+    st.header("📈 분위수 및 이상치 분석 결과")
+    
+    analysis_vars = ['age', 'fare']
+    results = {}
+    
+    # 1. 계산 로직 수행
+    for var in analysis_vars:
+        Q1 = df_raw[var].quantile(0.25)
+        Q2 = df_raw[var].quantile(0.5) # 중앙값 (2사분위수)
+        Q3 = df_raw[var].quantile(0.75)
+        IQR = Q3 - Q1
+        
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        
+        # 이상치 개수 계산 (IQR 기준)
+        outliers_count = len(df_raw[
+            (df_raw[var].notna()) & ((df_raw[var] < lower_bound) | (df_raw[var] > upper_bound))
+        ])
+        
+        results[var] = {
+            'Q1': Q1,
+            'Q2_Median': Q2,
+            'Q3': Q3,
+            'Outliers_Count': outliers_count
+        }
+
+    # 2. 결과 출력
+    col_a1, col_a2 = st.columns(2)
+    
+    with col_a1:
+        st.subheader("나이 (Age) 분석")
+        st.markdown(f"**1분위수 (Q1):** `{results['age']['Q1']:.2f}`")
+        st.markdown(f"**2분위수 (중앙값, Q2):** `{results['age']['Q2_Median']:.2f}`")
+        st.markdown(f"**3분위수 (Q3):** `{results['age']['Q3']:.2f}`")
+        st.error(f"**❗ IQR 기반 이상치 개수:** `{results['age']['Outliers_Count']}개`")
+
+    with col_a2:
+        st.subheader("요금 (Fare) 분석")
+        st.markdown(f"**1분위수 (Q1):** `{results['fare']['Q1']:.2f}`")
+        st.markdown(f"**2분위수 (중앙값, Q2):** `{results['fare']['Q2_Median']:.2f}`")
+        st.markdown(f"**3분위수 (Q3):** `{results['fare']['Q3']:.2f}`")
+        st.error(f"**❗ IQR 기반 이상치 개수:** `{results['fare']['Outliers_Count']}개`")
+        
+    st.markdown("---")
+
+
 # --- 메인 앱 로직 ---
 def main():
+    # 1. 데이터 로드 (분석에 사용할 원본 데이터)
     data = load_data(FILE_PATH)
     if data is None:
         return
-
+        
+    # 이상치/분위수 분석을 위해 초기 결측치만 처리된 원본 데이터 복사
+    data_raw = handle_missing_data(data.copy())
+    
+    # 2. 전처리 단계 (이상치 처리, 재결측치 처리, 컬럼 생성, 정규화)
     data = handle_missing_data(data)
     data = handle_outliers(data)
-    data = handle_missing_data(data) # 이상치로 인해 생긴 NaN 재처리
-    data = create_analysis_columns(data) # 분석 컬럼 생성
+    data = handle_missing_data(data)
+    data = create_analysis_columns(data)
     data = normalize_data(data)
 
     st.sidebar.title("메뉴 선택")
@@ -306,6 +363,7 @@ def main():
     
     st.sidebar.markdown("---")
     
+    # 3. 메뉴별 기능 호출
     if graph_type == '종합 요약 (표)':
         generate_summary_tables(data)
 
@@ -369,6 +427,10 @@ def main():
     
     elif graph_type == '박스 플롯':
         plot_boxplot(data)
+        
+    # 4. 모든 그래프/표 출력 후, 맨 아래에 분석 결과 출력
+    analyze_quantiles_and_outliers(data_raw)
+
 
 if __name__ == "__main__":
     main()
