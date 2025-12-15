@@ -84,7 +84,8 @@ def plot_boxplot(df):
     """박스 플롯 시각화"""
     st.subheader("📊 박스 플롯: 나이 (Age)와 요금 (Fare)")
     
-    fig, ax = plt.subplots(figsize=(4, 3))
+    # tight_layout=True 적용하여 제목 잘림 방지
+    fig, ax = plt.subplots(figsize=(4, 3), tight_layout=True)
     
     # 'data'는 0~100세 기준으로 나이 이상치가 처리되고 정규화된 값입니다.
     sns.boxplot(data=df[['age', 'fare']], ax=ax, palette="Set2") 
@@ -143,7 +144,7 @@ def generate_summary_tables(df_raw):
 
 # --- 시각화 함수 ---
 def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select):
-    """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다."""
+    """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다. Y축 상한을 조정하여 라벨 잘림 방지."""
     
     if 'age_group' not in df_raw.columns:
         st.error("오류: 'age_group' 컬럼이 데이터에 없습니다. 전처리 단계를 확인하세요.")
@@ -164,7 +165,12 @@ def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select
     
     st.subheader(f"📊 {target_name} by {x_label}")
 
-    fig, ax = plt.subplots(figsize=(5, 3)) 
+    # Y축 상한 설정: 최대값 + 10%
+    y_max = plot_data[target].max()
+    y_upper_limit = y_max * 1.10 if y_max > 0 else 10 # 0인 경우 최소 10 설정
+
+    # tight_layout=True 적용
+    fig, ax = plt.subplots(figsize=(5, 3), tight_layout=True) 
     
     if plot_type == 'Bar Chart':
         sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='YlGnBu', errorbar=None)
@@ -190,6 +196,7 @@ def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select
     ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=10)
     ax.set_xlabel(x_label, fontsize=8)
     ax.set_ylabel(target_name, fontsize=8)
+    ax.set_ylim(0, y_upper_limit) # <--- Y축 상한 적용
     st.pyplot(fig, use_container_width=False) 
     
     max_val = plot_data[target].max()
@@ -216,7 +223,8 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == 'Heatmap':
-        fig, ax = plt.subplots(figsize=(5, 5))
+        # tight_layout=True 적용하여 제목 잘림 방지
+        fig, ax = plt.subplots(figsize=(5, 5), tight_layout=True)
         
         col_names = ['Survived', 'Age', 'Fare']
         corr_matrix.columns = col_names
@@ -254,7 +262,8 @@ def plot_correlation(df, corr_type, plot_type):
     elif plot_type == 'Scatter Plot':
         st.subheader(f"산점도: pclass별 연령과 요금 (Normalized)")
         
-        fig, ax = plt.subplots(figsize=(5, 3))
+        # tight_layout=True 적용하여 제목 잘림 방지
+        fig, ax = plt.subplots(figsize=(5, 3), tight_layout=True)
         
         df_plot = df.copy()
         df_plot['pclass_str'] = df_plot['pclass'].astype(str) 
