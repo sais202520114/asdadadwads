@@ -30,7 +30,6 @@ def load_data(file_path):
         return None
     
     df_clean = df[['pclass', 'survived', 'sex', 'age', 'fare']].copy()
-
     return df_clean
 
 # --- 결측치 처리 (중복 제거 및 통합) ---
@@ -82,17 +81,16 @@ def normalize_data(df):
     df[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
     return df
 
-# --- 박스 플롯 함수 (크기 수정됨) ---
+# --- 박스 플롯 함수 (크기 수정됨: 4x3) ---
 def plot_boxplot(df):
     """박스 플롯 시각화"""
     st.subheader("📊 박스 플롯: 나이 (Age)와 요금 (Fare)")
     
-    # figsize를 (6, 4)로 조정
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(4, 3))
     
     sns.boxplot(data=df[['age', 'fare']], ax=ax, palette="Set2")
-    ax.set_title("Box Plot of Age and Fare (Normalized)", fontsize=14)
-    ax.set_ylabel('Normalized Value', fontsize=12)
+    ax.set_title("Box Plot of Age and Fare (Normalized)", fontsize=10)
+    ax.set_ylabel('Normalized Value', fontsize=8)
     
     st.pyplot(fig, use_container_width=True)
 
@@ -144,7 +142,7 @@ def generate_summary_tables(df):
         
     st.markdown("---")
 
-# --- 시각화 함수 ---
+# --- 시각화 함수 (크기 수정됨: 5x3) ---
 def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다."""
     
@@ -167,7 +165,8 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     
     st.subheader(f"📊 {target_name} by {x_label}")
 
-    fig, ax = plt.subplots(figsize=(6, 4))
+    # figsize를 (5, 3)으로 조정
+    fig, ax = plt.subplots(figsize=(5, 3)) 
     
     if plot_type == 'Bar Chart':
         sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='YlGnBu', errorbar=None)
@@ -190,9 +189,9 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
                         ha='center', 
                         fontsize=8)
             
-    ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=12)
-    ax.set_xlabel(x_label, fontsize=10)
-    ax.set_ylabel(target_name, fontsize=10)
+    ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=10)
+    ax.set_xlabel(x_label, fontsize=8)
+    ax.set_ylabel(target_name, fontsize=8)
     st.pyplot(fig, use_container_width=False) 
     
     max_val = plot_data[target].max()
@@ -207,7 +206,7 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
         extreme_label = '가장 낮은 지점'
         st.error(f"🥉 **{extreme_label}:** {extreme_data.reset_index(drop=True)[x_col].iloc[0]} ({min_val})")
 
-# --- 상관관계 분석 함수 수정 ---
+# --- 상관관계 분석 함수 수정 (크기 수정됨: Scatter Plot은 5x3) ---
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다. (내부 라벨은 영어)"""
     
@@ -219,7 +218,8 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == 'Heatmap':
-        fig, ax = plt.subplots(figsize=(6, 6))
+        # Heatmap은 (6, 6) 또는 (5, 5)와 같은 정사각형이 좋으므로 (5, 5)로 조정
+        fig, ax = plt.subplots(figsize=(5, 5))
         
         col_names = ['Survived', 'Age', 'Fare']
         corr_matrix.columns = col_names
@@ -236,7 +236,7 @@ def plot_correlation(df, corr_type, plot_type):
             annot_kws={"size": 9},
             ax=ax
         )
-        ax.set_title("Correlation Heatmap of Titanic Attributes", fontsize=12)
+        ax.set_title("Correlation Heatmap of Titanic Attributes", fontsize=10)
         st.pyplot(fig, use_container_width=False) 
         
         if corr_type == '양의 상관관계':
@@ -257,16 +257,17 @@ def plot_correlation(df, corr_type, plot_type):
     elif plot_type == 'Scatter Plot':
         st.subheader(f"산점도: pclass별 연령과 요금 (Normalized)")
         
-        fig, ax = plt.subplots(figsize=(6, 4))
+        # figsize를 (5, 3)으로 조정
+        fig, ax = plt.subplots(figsize=(5, 3))
         
         df_plot = df.copy()
         df_plot['pclass_str'] = df_plot['pclass'].astype(str) 
         
         sns.scatterplot(x='age', y='fare', data=df_plot, hue='pclass_str', style='pclass_str', palette='deep', ax=ax, legend='full')
         
-        ax.set_title(f"Scatter Plot: Age vs Fare (Grouped by Passenger Class)", fontsize=12)
-        ax.set_xlabel('Age (Normalized)', fontsize=10)
-        ax.set_ylabel('Fare (Normalized)', fontsize=10)
+        ax.set_title(f"Scatter Plot: Age vs Fare (Grouped by Passenger Class)", fontsize=10)
+        ax.set_xlabel('Age (Normalized)', fontsize=8)
+        ax.set_ylabel('Fare (Normalized)', fontsize=8)
         
         st.pyplot(fig, use_container_width=False) 
 
