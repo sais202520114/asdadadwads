@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # 파일 경로 설정
 FILE_PATH = "titanic.xls"
 
-# --- Matplotlib 폰트 설정 (그래프 내부 라벨 깨짐 방지를 위해 영어/sans-serif 유지) ---
+# --- Matplotlib 폰트 설정: 모든 그래프 관련 폰트는 영어/sans-serif 유지 ---
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False 
 
@@ -37,7 +37,7 @@ def load_data(file_path):
     df_clean['age'] = df_clean['age'].fillna(df_clean['age'].median())
     df_clean['fare'] = df_clean['fare'].fillna(df_clean['fare'].median())
     
-    # 연령 그룹 생성 (그래프 라벨은 영어로 유지)
+    # 연령 그룹 생성 (라벨은 영어로 유지)
     bins = [0, 10, 20, 30, 40, 50, 60, 100]
     labels = ['0-10s', '10-20s', '20-30s', '30-40s', '40-50s', '50-60s', '60s+']
     df_clean['age_group'] = pd.cut(df_clean['age'], bins=bins, labels=labels, right=False)
@@ -60,10 +60,10 @@ def generate_summary_tables(df):
     col_d1, col_d2 = st.columns(2)
     
     age_death_summary = df.groupby('age_group')['Death'].sum().reset_index()
-    age_death_summary = age_death_summary.rename(columns={'age_group': '연령대 (Graph Label)', 'Death': '사망자 수'})
+    age_death_summary = age_death_summary.rename(columns={'age_group': '연령대 (Age Group)', 'Death': '사망자 수'})
     with col_d1:
         st.caption("연령별 사망자 수")
-        st.dataframe(age_death_summary.set_index('연령대 (Graph Label)'))
+        st.dataframe(age_death_summary.set_index('연령대 (Age Group)'))
         
     class_death_summary = df.groupby('pclass')['Death'].sum().reset_index()
     class_death_summary = class_death_summary.rename(columns={'pclass': '선실 등급', 'Death': '사망자 수'})
@@ -81,10 +81,10 @@ def generate_summary_tables(df):
     col_s1, col_s2 = st.columns(2)
 
     age_survival_summary = df.groupby('age_group')['Survival'].sum().reset_index()
-    age_survival_summary = age_survival_summary.rename(columns={'age_group': '연령대 (Graph Label)', 'Survival': '구조자 수'})
+    age_survival_summary = age_survival_summary.rename(columns={'age_group': '연령대 (Age Group)', 'Survival': '구조자 수'})
     with col_s1:
         st.caption("연령별 구조자 수")
-        st.dataframe(age_survival_summary.set_index('연령대 (Graph Label)'))
+        st.dataframe(age_survival_summary.set_index('연령대 (Age Group)'))
         
     class_survival_summary = df.groupby('pclass')['Survival'].sum().reset_index()
     class_survival_summary = class_survival_summary.rename(columns={'pclass': '선실 등급', 'Survival': '구조자 수'})
@@ -95,7 +95,7 @@ def generate_summary_tables(df):
     
     st.markdown("---")
 
-# --- 시각화 함수 (그래프는 영어 라벨) ---
+# --- 시각화 함수 (그래프 제목/라벨은 영어) ---
 def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다. (내부 라벨은 영어)"""
     
@@ -118,6 +118,7 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     fig, ax = plt.subplots(figsize=(6, 4))
     
     if plot_type == 'Bar Chart':
+        # seaborn 내부에서 plot_data[x_col]을 사용하므로, x_col이 영문 라벨임
         sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='YlGnBu', errorbar=None)
         
         for p in ax.patches:
@@ -138,11 +139,11 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
                         ha='center', 
                         fontsize=8)
         
+    # === 그래프 제목/라벨은 영어로 통일 (한글 깨짐 방지) ===
     ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=12)
     ax.set_xlabel(x_label, fontsize=10)
     ax.set_ylabel(target_name, fontsize=10)
-    st.pyplot(fig, use_container_width=False) 
-    
+    st.pyplot(fig, use_container_width=False)     
     max_val = plot_data[target].max()
     min_val = plot_data[target].min()
     
@@ -159,7 +160,7 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다. (내부 라벨은 영어)"""
     
-    # === 수정: pclass를 제외하고 연속형 변수만 상관관계 행렬에 포함 ===
+    # pclass 제외한 연속형 변수만 상관관계 행렬에 포함
     numeric_df = df[['survived', 'age', 'fare']].copy() 
     
     corr_matrix, max_corr, min_corr = calculate_correlation(numeric_df)
@@ -171,7 +172,6 @@ def plot_correlation(df, corr_type, plot_type):
         plt.figure(figsize=(6, 6))
         fig, ax = plt.subplots(figsize=(6, 6))
         
-        # pclass 제외에 따른 컬럼명 수정
         col_names = ['Survived', 'Age', 'Fare']
         corr_matrix.columns = col_names
         corr_matrix.index = col_names
@@ -188,8 +188,7 @@ def plot_correlation(df, corr_type, plot_type):
             ax=ax
         )
         ax.set_title("Correlation Heatmap of Titanic Attributes", fontsize=12)
-        st.pyplot(fig, use_container_width=False) 
-        
+        st.pyplot(fig, use_container_width=False)         
         # 2. 강한 상관관계 출력
         if corr_type == '양의 상관관계':
             if not max_corr.empty:
@@ -207,50 +206,39 @@ def plot_correlation(df, corr_type, plot_type):
                 st.warning("분석할 수 있는 유효한 음의 상관관계 쌍이 없습니다.")
 
     elif plot_type == 'Scatter Plot':
-        # 1. 산점도 변수 선택 로직
+        # 1. 산점도 변수 선택 로직 (연속형 변수 2개를 축으로 사용)
         
         if corr_type == '양의 상관관계':
-            if not max_corr.empty:
-                pair = max_corr.index[0]
-                # Age/Fare 쌍이 선택될 가능성이 높음
-                x_var, y_var = pair[0], pair[1] 
-                title_prefix = "Strongest Positive Correlation"
-            else:
-                # Fallback: Fare vs Age (PClass 제외)
-                x_var, y_var = 'fare', 'age'
-                title_prefix = "Positive Correlation (Fallback: Fare vs Age)"
-
-        else: # 음의 상관관계
-            # === 수정: 음의 상관관계는 'Survived'와 'Age' 또는 'Fare' 사이에서 발생 가능 ===
-            if not min_corr.empty:
-                pair = min_corr.index[0]
-                x_var, y_var = pair[0], pair[1]
-                title_prefix = "Strongest Negative Correlation"
-            else:
-                # Fallback: Survived vs Age (일반적인 음의 상관관계 쌍)
-                x_var, y_var = 'age', 'survived'
-                title_prefix = "Negative Correlation (Fallback: Age vs Survived)"
+            # 양의 상관관계는 주로 Age와 Fare 사이에서 발생 (Strongest Positive Correlation)
+            x_var, y_var = 'age', 'fare' 
+            title_prefix = "Relationship: Age vs Fare"
+        else: 
+            # 음의 상관관계는 Survived와 Age/Fare 사이에서 간접적으로 볼 수 있지만, 
+            # 가장 명확한 두 연속형 변수는 없으므로, 기본적으로 Fare vs Age를 사용하되 제목만 변경
+            x_var, y_var = 'age', 'fare'
+            title_prefix = "Relationship: Age vs Fare (by Survival Status)"
         
         # 2. 산점도 시각화
-        st.subheader(f"산점도: {title_prefix} - {x_var} vs {y_var}")
+        st.subheader(f"산점도: {title_prefix} ({x_var} vs {y_var})")
         
         # === 크기 강제 설정 ===
         plt.figure(figsize=(6, 4))
         fig, ax = plt.subplots(figsize=(6, 4))
         
-        # 산점도 그리기
+        # X, Y 축에 연속형 변수만 사용하고, Survived를 Hue (색상)으로만 사용합니다.
+        # 이전에 발생했던 X축 값 문제 (0.0~0.8)는 Age, Fare가 올바른 값을 가지므로 해결될 것입니다.
         sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep', legend='full') 
         
-        ax.set_title(f"Relationship between {x_var} and {y_var} (Grouped by Survival)", fontsize=12)
-        ax.set_xlabel(x_var, fontsize=10)
-        ax.set_ylabel(y_var, fontsize=10)
+        # === 그래프 제목/라벨은 영어로 통일 (한글 깨짐 방지) ===
+        ax.set_title(f"Scatter Plot: {x_var} vs {y_var} (Grouped by Survival)", fontsize=12)
+        ax.set_xlabel(x_var.capitalize(), fontsize=10)
+        ax.set_ylabel(y_var.capitalize(), fontsize=10)
         
         # 축 포맷팅 (큰 값이 작은 값으로 포맷되는 것을 방지)
         ax.ticklabel_format(style='plain', useOffset=False, axis='x')
         ax.ticklabel_format(style='plain', useOffset=False, axis='y')
             
         st.pyplot(fig, use_container_width=False) 
-
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 비자명 상관관계 쌍을 추출합니다."""
     # pclass가 제외된 numeric_df를 받음
@@ -262,7 +250,6 @@ def calculate_correlation(df):
     
     valid_corr = corr_unstacked.dropna()
     
-    # 1 또는 -1에 극단적으로 가까운 값 필터링
     valid_corr = valid_corr[abs(valid_corr) < 0.999999] 
 
     max_corr = valid_corr.head(1)
