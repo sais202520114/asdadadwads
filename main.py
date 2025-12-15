@@ -8,26 +8,40 @@ import matplotlib.font_manager as fm
 # 사용자님이 요청하신 파일명으로 정확히 설정
 FILE_PATH = "titanic.xls"
 
-# --- Matplotlib 한글 폰트 설정 (최종 보강) ---
+# --- Matplotlib 한글 폰트 설정 (최종, 가장 확실한 방식) ---
 plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
 
-# 시스템에 설치된 한글 폰트 검색 및 설정
+# 시스템에 설치된 나눔고딕 폰트 검색 및 설정
 font_name = None
-# 흔히 사용되는 한글 폰트 이름을 리스트업하여 찾습니다.
-preferred_fonts = ['Malgun Gothic', 'AppleGothic', 'NanumGothic', 'NanumBarunGothic']
-
 for font_path in fm.findSystemFonts(fontpaths=None, fontext='ttf'):
     font_prop = fm.FontProperties(fname=font_path)
-    if font_prop.get_name() in preferred_fonts:
+    # 나눔고딕이 있다면 최우선으로 사용
+    if 'NanumGothic' in font_prop.get_name():
         font_name = font_prop.get_name()
         break
+
+# 만약 나눔고딕을 찾지 못했다면, 다른 흔한 폰트 시도 (Mac/Windows)
+if not font_name:
+    preferred_fonts = ['Malgun Gothic', 'AppleGothic', 'sans-serif']
+    for p_font in preferred_fonts:
+        if p_font in plt.rcParams['font.family']:
+             font_name = p_font
+             break
+        # Windows의 경우
+        if p_font == 'Malgun Gothic' and 'C:/Windows/Fonts/malgun.ttf' in fm.findSystemFonts(fontext='ttf'):
+             font_name = 'Malgun Gothic'
+             break
+        # Mac의 경우
+        if p_font == 'AppleGothic':
+             font_name = 'AppleGothic'
+             break
 
 if font_name:
     plt.rcParams['font.family'] = font_name
 else:
-    # 적절한 한글 폰트를 찾지 못한 경우
+    # 모든 시도가 실패하면 경고 메시지 출력
     plt.rcParams['font.family'] = 'sans-serif'
-    st.warning("경고: 시스템에서 적절한 한글 폰트를 찾을 수 없습니다. 그래프의 한글이 깨질 수 있습니다. 나눔고딕 등의 폰트를 설치해 보세요.")
+    st.warning("경고: 시스템에서 '나눔고딕', '맑은 고딕' 등 적절한 한글 폰트를 찾을 수 없습니다. 그래프의 한글이 깨질 수 있습니다. 나눔 폰트를 설치해 보세요.")
 
 
 # Streamlit 페이지 설정
@@ -151,8 +165,8 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
     
     # 1. 그래프 그리기
     if plot_type == '막대 그래프':
-        # 막대 그래프 색상을 'pastel'로 변경
-        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='pastel', errorbar=None)
+        # 요청하신 대로 파란색 그라데이션 ('Blues_d': Dark Blues) 적용
+        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='Blues_d', errorbar=None)
         
         # 막대 위에 숫자 출력
         for p in ax.patches:
@@ -165,8 +179,8 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
                         fontsize=10)
             
     elif plot_type == '꺾은선 그래프':
-        # 꺾은선 그래프 색상을 'red'로 유지 (가독성 고려)
-        sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='red')
+        # 꺾은선 그래프는 파란색 계열 중 진한 색상 하나로 통일 (가독성 고려)
+        sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='blue')
         
         # 점 위에 숫자 출력
         for x, y in zip(plot_data[x_col], plot_data[target]):
@@ -206,13 +220,13 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == '히트맵':
-        # 1. 히트맵 시각화 (vlag 팔레트로 변경)
+        # 1. 히트맵 시각화 (파란색 그라데이션 'Blues' 적용)
         fig, ax = plt.subplots(figsize=(10, 8))
         sns.heatmap(
             corr_matrix, 
             annot=True, 
             fmt=".2f", 
-            cmap='vlag', # 색상 변경
+            cmap='Blues', # 색상 변경
             cbar=True,
             linewidths=0.5,
             linecolor='black',
@@ -254,7 +268,7 @@ def plot_correlation(df, corr_type, plot_type):
 
         st.subheader(f"산점도: {title_prefix} - {pair[0]} vs {pair[1]}")
         fig, ax = plt.subplots(figsize=(8, 6))
-        # 산점도 색상 팔레트를 'deep'으로 변경
+        # 산점도는 hue를 기준으로 색을 나누기 때문에, 기본 'deep' 팔레트 유지
         sns.scatterplot(x=pair[0], y=pair[1], data=df, ax=ax, hue='survived', palette='deep') 
         ax.set_title(f"{pair[0]}와 {pair[1]}의 {title_prefix} 관계 (생존 여부 기준)", fontsize=15)
         st.pyplot(fig) 
@@ -295,7 +309,6 @@ def main():
     # ------------------
     
     if graph_type == '종합 요약 (표)':
-        # 요청하신 대로, 표는 별도의 메뉴로 분리
         generate_summary_tables(data)
 
     elif graph_type == '사망자/구조자 수 분석 (그래프)':
