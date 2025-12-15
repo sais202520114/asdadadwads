@@ -8,31 +8,33 @@ import matplotlib.font_manager as fm
 # 사용자님이 요청하신 파일명으로 정확히 설정
 FILE_PATH = "titanic.xls"
 
-# --- Matplotlib 한글 폰트 설정 (가장 안정적인 방식) ---
+# =========================================================
+# --- Matplotlib 한글 폰트 설정 (가장 확실한 안정화 코드) ---
+# =========================================================
 plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
 
+# 1. 시스템 폰트 목록에서 가장 안정적인 한글 폰트를 찾습니다.
 font_name = None
-# 나눔고딕, 맑은고딕 등 선호 폰트 검색
-preferred_fonts = ['NanumGothic', 'Malgun Gothic', 'AppleGothic']
+preferred_fonts = ['AppleGothic', 'Malgun Gothic', 'NanumGothic']
 
-# 시스템 폰트 목록에서 선호 폰트 찾기
-for font_path in fm.findSystemFonts(fontext='ttf'):
-    font_prop = fm.FontProperties(fname=font_path)
-    if font_prop.get_name() in preferred_fonts:
-        font_name = font_prop.get_name()
+for font_prop in [fm.FontProperties(fname=font_path) for font_path in fm.findSystemFonts(fontext='ttf')]:
+    name = font_prop.get_name()
+    if name in preferred_fonts:
+        font_name = name
         break
-    if 'Malgun' in font_prop.get_name():
+    if 'Malgun' in name:
         font_name = 'Malgun Gothic'
         break
 
-# 찾은 폰트 설정, 없으면 sans-serif 사용 (Streamlit 환경 기본 폰트)
+# 2. 폰트를 설정합니다.
 if font_name:
     plt.rcParams['font.family'] = font_name
-    st.info(f"사용된 한글 폰트: {font_name}")
+    st.info(f"사용된 한글 폰트: {font_name} (깨짐 방지 설정)")
 else:
-    # 폰트가 없는 환경을 대비하여 경고 메시지 출력
+    # 3. 폰트를 찾지 못했을 경우, 스트림릿 환경에서 비교적 안전한 폰트 지정 및 경고
     plt.rcParams['font.family'] = 'sans-serif'
-    st.warning("경고: 적절한 한글 폰트를 찾을 수 없습니다. (NanumGothic, Malgun Gothic 권장)")
+    st.warning("경고: 적절한 한글 폰트를 찾지 못했습니다. NanumGothic을 설치하거나, Streamlit 환경의 기본 'sans-serif'를 사용합니다.")
+    # 폰트 캐시를 지워서 재시도하는 코드는 Streamlit 환경에서 보안 문제로 작동하지 않을 수 있으므로 제거함
 
 
 # Streamlit 페이지 설정
@@ -42,33 +44,27 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 데이터 로드 및 전처리 함수 ---
+# --- 데이터 로드 및 전처리 함수 (변경 없음) ---
 @st.cache_data
 def load_data(file_path):
-    """엑셀(.xls) 파일을 로드하고 필요한 전처리를 수행합니다."""
     try:
         df = pd.read_excel(file_path)
     except Exception:
         st.error(f"오류: 파일을 찾을 수 없거나 엑셀 로드 라이브러리('xlrd')가 설치되지 않았습니다. 파일 경로('{file_path}')와 requirements.txt를 확인해 주세요.")
         return None
     
-    # 분석에 필요한 열 선택 및 전처리
     df_clean = df[['pclass', 'survived', 'sex', 'age', 'fare']].copy()
-
-    # 결측값 처리
     df_clean['pclass'] = df_clean['pclass'].fillna(df_clean['pclass'].mode()[0]).astype(int)
     df_clean['survived'] = df_clean['survived'].fillna(0).astype(int)
     df_clean['age'] = df_clean['age'].fillna(df_clean['age'].median())
     df_clean['fare'] = df_clean['fare'].fillna(df_clean['fare'].median())
     
-    # Age Group 생성
     bins = [0, 10, 20, 30, 40, 50, 60, 100]
     labels = ['0-10대', '10-20대', '20-30대', '30-40대', '40-50대', '50-60대', '60대 이상']
     df_clean['age_group'] = pd.cut(df_clean['age'], bins=bins, labels=labels, right=False)
 
-    # 분석에 필요한 타겟 열 생성
-    df_clean['Death'] = 1 - df_clean['survived'] # 사망자
-    df_clean['Survival'] = df_clean['survived'] # 구조자
+    df_clean['Death'] = 1 - df_clean['survived']
+    df_clean['Survival'] = df_clean['survived']
     
     return df_clean
 
@@ -140,10 +136,9 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
     
     st.subheader(f"📊 {target_name_kor} ({x_label_kor}별)")
 
-    # === 크기 수정 ===
-    fig, ax = plt.subplots(figsize=(7, 5))
+    # === 그래프 크기 수정: (6, 4)로 최소화 ===
+    fig, ax = plt.subplots(figsize=(6, 4))
     
-    # 1. 그래프 그리기
     if plot_type == '막대 그래프':
         sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='YlGnBu', errorbar=None)
         
@@ -153,7 +148,7 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
                         ha='center', va='center', 
                         xytext=(0, 5), 
                         textcoords='offset points', 
-                        fontsize=10)
+                        fontsize=8) # 폰트 크기 조정
             
     elif plot_type == '꺾은선 그래프':
         sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='blue')
@@ -161,13 +156,13 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
         for x, y in zip(plot_data[x_col], plot_data[target]):
             ax.annotate(f'{int(y)}', (x, y), 
                         textcoords="offset points", 
-                        xytext=(0, 10), 
+                        xytext=(0, 8), 
                         ha='center', 
-                        fontsize=10)
+                        fontsize=8) # 폰트 크기 조정
         
-    ax.set_title(f"{x_label_kor}별 {target_name_kor} ({plot_type})", fontsize=13)
-    ax.set_xlabel(x_label_kor)
-    ax.set_ylabel(target_name_kor)
+    ax.set_title(f"{x_label_kor}별 {target_name_kor} ({plot_type})", fontsize=12)
+    ax.set_xlabel(x_label_kor, fontsize=10)
+    ax.set_ylabel(target_name_kor, fontsize=10)
     st.pyplot(fig) 
     
     # 3. 최대/최소 지점 출력
@@ -195,8 +190,8 @@ def plot_correlation(df, corr_type, plot_type):
     
     if plot_type == '히트맵':
         # 1. 히트맵 시각화
-        # === 크기 수정 ===
-        fig, ax = plt.subplots(figsize=(7, 7))
+        # === 그래프 크기 수정: (6, 6)으로 최소화 ===
+        fig, ax = plt.subplots(figsize=(6, 6))
         
         col_names = ['생존 여부', '선실 등급', '나이', '운임']
         corr_matrix.columns = col_names
@@ -210,9 +205,10 @@ def plot_correlation(df, corr_type, plot_type):
             cbar=True,
             linewidths=0.5,
             linecolor='black',
+            annot_kws={"size": 9}, # 주석 폰트 크기 조정
             ax=ax
         )
-        ax.set_title("타이타닉 속성 간 상관관계 히트맵", fontsize=13)
+        ax.set_title("타이타닉 속성 간 상관관계 히트맵", fontsize=12)
         st.pyplot(fig) 
         
         # 2. 강한 상관관계 출력
@@ -235,61 +231,57 @@ def plot_correlation(df, corr_type, plot_type):
         # 산점도 시각화
         
         if corr_type == '양의 상관관계':
-            # === 상관관계 쌍 추출 로직 보강 ===
-            if max_corr.empty:
-                st.warning("분석할 수 있는 양의 상관관계 쌍이 없습니다. (운임-나이, 운임-생존 여부 등 확인)")
-                # Fallback: Fare vs Age (일반적으로 양의 상관관계)
-                x_var, y_var = 'fare', 'age'
-                title_prefix = "양의 상관관계 (기본: 운임 vs 나이)"
-            else:
+            if not max_corr.empty:
                 pair = max_corr.index[0]
                 x_var, y_var = pair[0], pair[1]
-                title_prefix = "양의 상관관계"
+                title_prefix = "가장 강한 양의 상관관계"
+            else:
+                # Fallback: 운임 (Fare)과 나이 (Age)는 보통 양의 상관관계
+                x_var, y_var = 'fare', 'age'
+                title_prefix = "양의 상관관계 (대체: 운임 vs 나이)"
 
         else: # 음의 상관관계
-            if min_corr.empty:
-                st.warning("분석할 수 있는 음의 상관관계 쌍이 없습니다. (선실 등급-운임, 선실 등급-생존 여부 등 확인)")
-                # Fallback: Pclass vs Fare (일반적으로 음의 상관관계)
-                x_var, y_var = 'pclass', 'fare'
-                title_prefix = "음의 상관관계 (기본: 선실 등급 vs 운임)"
-            else:
+            if not min_corr.empty:
                 pair = min_corr.index[0]
                 x_var, y_var = pair[0], pair[1]
-                title_prefix = "음의 상관관계"
+                title_prefix = "가장 강한 음의 상관관계"
+            else:
+                # Fallback: 선실 등급 (Pclass)과 운임 (Fare)은 음의 상관관계
+                x_var, y_var = 'pclass', 'fare'
+                title_prefix = "음의 상관관계 (대체: 선실 등급 vs 운임)"
 
         st.subheader(f"산점도: {title_prefix} - {x_var} vs {y_var}")
-        # === 크기 수정 ===
-        fig, ax = plt.subplots(figsize=(7, 5))
+        # === 그래프 크기 수정: (6, 4)로 최소화 ===
+        fig, ax = plt.subplots(figsize=(6, 4))
         
         sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep') 
         
-        ax.set_title(f"{x_var}와 {y_var}의 {title_prefix} 관계 (생존 여부 기준)", fontsize=13)
-        ax.set_xlabel(x_var)
-        ax.set_ylabel(y_var)
+        ax.set_title(f"{x_var}와 {y_var}의 {title_prefix} 관계 (생존 여부 기준)", fontsize=12)
+        ax.set_xlabel(x_var, fontsize=10)
+        ax.set_ylabel(y_var, fontsize=10)
         st.pyplot(fig) 
 
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 양/음의 상관관계를 추출합니다. (1, -1만 나오는 문제 해결)"""
     corr_matrix = df.corr()
     
-    # 2. 대각선 값 (자기 자신과의 상관관계)을 NaN으로 명시적으로 채우기
+    # 대각선 값 (자기 자신과의 상관관계)을 NaN으로 명시적으로 채우기
     np.fill_diagonal(corr_matrix.values, np.nan) 
     
-    # 상삼각 행렬만 추출하고 1 또는 -1에 가까운 값 제외 (극단적인 1/-1 회피)
     corr_unstacked = corr_matrix.unstack().sort_values(ascending=False).drop_duplicates()
     
-    # 절대값이 1이 아닌 (즉, 자기 자신이 아닌) 유효한 상관관계 값만 필터링
     valid_corr = corr_unstacked.dropna()
-    valid_corr = valid_corr[abs(valid_corr) < 0.9999] # 1에 가까운 값 제거
+    
+    # === 1, -1에 가까운 값 필터링 완화 (0.999999 미만) ===
+    valid_corr = valid_corr[abs(valid_corr) < 0.999999] 
 
     max_corr = valid_corr.head(1)
     min_corr = valid_corr.tail(1)
     
-    # 상관관계가 없는 경우 빈 시리즈 반환
+    # 필터링 후에도 값이 없으면 원본에서 추출 (매우 희박한 경우 대비)
     if max_corr.empty and not corr_unstacked.empty:
-         # 예외적인 경우를 대비하여 가장 큰/작은 값 재확인 (극단적인 경우 대비)
-        max_corr = corr_unstacked.dropna().head(1)
-        min_corr = corr_unstacked.dropna().tail(1)
+         max_corr = corr_unstacked.dropna().head(1)
+         min_corr = corr_unstacked.dropna().tail(1)
     
     return corr_matrix, max_corr, min_corr
 
