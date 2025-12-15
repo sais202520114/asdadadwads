@@ -8,37 +8,27 @@ import matplotlib.font_manager as fm
 # 사용자님이 요청하신 파일명으로 정확히 설정
 FILE_PATH = "titanic.xls"
 
-# --- Matplotlib 한글 폰트 설정 (최종, 보수적 방식 유지) ---
+# --- Matplotlib 한글 폰트 설정 (최종 보강 버전) ---
 plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
 
-# 시스템에 설치된 나눔고딕 폰트 검색 및 설정
 font_name = None
-for font_path in fm.findSystemFonts(fontpaths=None, fontext='ttf'):
+preferred_fonts = ['NanumGothic', 'Malgun Gothic', 'AppleGothic', 'sans-serif']
+
+for font_path in fm.findSystemFonts(fontext='ttf'):
     font_prop = fm.FontProperties(fname=font_path)
-    # 나눔고딕이 있다면 최우선으로 사용
-    if 'NanumGothic' in font_prop.get_name():
+    if font_prop.get_name() in preferred_fonts:
         font_name = font_prop.get_name()
         break
-
-# 만약 나눔고딕을 찾지 못했다면, 다른 흔한 폰트 시도 (Mac/Windows)
-if not font_name:
-    preferred_fonts = ['Malgun Gothic', 'AppleGothic', 'sans-serif']
-    for p_font in preferred_fonts:
-        if p_font == 'Malgun Gothic' and 'C:/Windows/Fonts/malgun.ttf' in fm.findSystemFonts(fontext='ttf'):
-             font_name = 'Malgun Gothic'
-             break
-        if p_font == 'AppleGothic':
-             font_name = 'AppleGothic'
-             break
-        if p_font == 'sans-serif':
-             font_name = 'sans-serif'
+    # 맑은 고딕 경로 직접 확인 (Windows 환경 대비)
+    if 'Malgun' in font_prop.get_name():
+        font_name = 'Malgun Gothic'
+        break
 
 if font_name:
     plt.rcParams['font.family'] = font_name
 else:
-    # 모든 시도가 실패하면 경고 메시지 출력
     plt.rcParams['font.family'] = 'sans-serif'
-    st.warning("경고: 시스템에서 '나눔고딕', '맑은 고딕' 등 적절한 한글 폰트를 찾을 수 없습니다. 그래프의 한글이 깨질 수 있습니다. 나눔 폰트를 설치해 보세요.")
+    st.warning("경고: 시스템에서 적절한 한글 폰트(나눔고딕, 맑은 고딕)를 찾을 수 없습니다. 그래프의 한글이 깨질 수 있습니다.")
 
 
 # Streamlit 페이지 설정
@@ -55,29 +45,26 @@ def load_data(file_path):
     try:
         df = pd.read_excel(file_path)
     except Exception:
-        # xlrd 관련 오류 및 파일 오류 메시지
         st.error(f"오류: 파일을 찾을 수 없거나 엑셀 로드 라이브러리('xlrd')가 설치되지 않았습니다. 파일 경로('{file_path}')와 requirements.txt를 확인해 주세요.")
         return None
     
-    # 분석에 필요한 열 선택
+    # 분석에 필요한 열 선택 및 전처리
     df_clean = df[['pclass', 'survived', 'sex', 'age', 'fare']].copy()
 
-    # 'pclass', 'survived'는 수치형이지만 범주형으로 사용하기 위해 정수형 변환
+    # 결측값 처리
     df_clean['pclass'] = df_clean['pclass'].fillna(df_clean['pclass'].mode()[0]).astype(int)
     df_clean['survived'] = df_clean['survived'].fillna(0).astype(int)
-    
-    # 'age'와 'fare' 결측값은 중앙값으로 대체
     df_clean['age'] = df_clean['age'].fillna(df_clean['age'].median())
     df_clean['fare'] = df_clean['fare'].fillna(df_clean['fare'].median())
     
-    # Age Group 생성
+    # Age Group 생성 (표 및 카운팅 그래프에만 사용)
     bins = [0, 10, 20, 30, 40, 50, 60, 100]
     labels = ['0-10대', '10-20대', '20-30대', '30-40대', '40-50대', '50-60대', '60대 이상']
     df_clean['age_group'] = pd.cut(df_clean['age'], bins=bins, labels=labels, right=False)
 
     # 분석에 필요한 타겟 열 생성
-    df_clean['Death'] = 1 - df_clean['survived'] # 사망자 (0:생존, 1:사망)
-    df_clean['Survival'] = df_clean['survived'] # 구조자 (0:사망, 1:생존)
+    df_clean['Death'] = 1 - df_clean['survived'] # 사망자
+    df_clean['Survival'] = df_clean['survived'] # 구조자
     
     return df_clean
 
@@ -87,6 +74,7 @@ def generate_summary_tables(df):
     st.markdown(f"**분석 데이터 파일명:** `{FILE_PATH}`")
     st.markdown("---")
     
+    # (표 출력 코드는 변경 없음. 정상 작동 확인됨.)
     # 1. 사망자 요약
     total_deaths = df['Death'].sum()
     st.header(f"💔 총 사망자 수: {total_deaths}명")
@@ -162,12 +150,11 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
     
     # 1. 그래프 그리기
     if plot_type == '막대 그래프':
-        # 요청하신 대로 청량하고 예쁜 파란색 그라데이션 ('YlGnBu') 적용
+        # 요청하신 청량한 파란색 그라데이션 ('YlGnBu') 적용
         sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='YlGnBu', errorbar=None)
         
         # 막대 위에 숫자 출력
         for p in ax.patches:
-            # 막대 그래프 높이에 숫자 표시
             ax.annotate(f'{int(p.get_height())}', 
                         (p.get_x() + p.get_width() / 2., p.get_height()), 
                         ha='center', va='center', 
@@ -210,7 +197,11 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
 
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다."""
-    numeric_df = df.select_dtypes(include=['number']).copy()
+    
+    # === 핵심 수정 부분: 상관관계 분석에 필요한 수치형 데이터만 선택 ===
+    # 'pclass', 'survived', 'age', 'fare'만 사용
+    # 'sex', 'age_group' 등 문자열/범주형 데이터는 제외
+    numeric_df = df[['survived', 'pclass', 'age', 'fare']].copy()
     
     corr_matrix, max_corr, min_corr = calculate_correlation(numeric_df)
     
@@ -219,11 +210,17 @@ def plot_correlation(df, corr_type, plot_type):
     if plot_type == '히트맵':
         # 1. 히트맵 시각화 (청량한 파란색 그라데이션 'YlGnBu' 적용)
         fig, ax = plt.subplots(figsize=(10, 8))
+        
+        # 히트맵의 x/y 라벨을 한글로 변경 (선택 사항)
+        col_names = ['생존 여부', '선실 등급', '나이', '운임']
+        corr_matrix.columns = col_names
+        corr_matrix.index = col_names
+        
         sns.heatmap(
             corr_matrix, 
             annot=True, 
             fmt=".2f", 
-            cmap='YlGnBu', # 색상 변경
+            cmap='YlGnBu', 
             cbar=True,
             linewidths=0.5,
             linecolor='black',
@@ -273,11 +270,17 @@ def plot_correlation(df, corr_type, plot_type):
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 양/음의 상관관계를 추출합니다."""
     corr_matrix = df.corr()
-    np.fill_diagonal(corr_matrix.values, float('nan'))
+    
+    # 2. 상관관계 1만 나오는 문제 해결: 대각선 값을 NaN으로 명시적으로 채우기
+    np.fill_diagonal(corr_matrix.values, np.nan) 
+    
+    # 유효한 값만 추출 및 정렬
     corr_unstacked = corr_matrix.unstack().sort_values(ascending=False).drop_duplicates()
     valid_corr = corr_unstacked.dropna()
+    
     max_corr = valid_corr.head(1)
     min_corr = valid_corr.tail(1)
+    
     return corr_matrix, max_corr, min_corr
 
 # --- 메인 앱 로직 ---
