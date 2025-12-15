@@ -46,7 +46,7 @@ def load_data(file_path):
     
     return df_clean
 
-# --- 요약 표 출력 함수 (표는 한국어) ---
+# --- 요약 표 출력 함수 (UI는 한국어) ---
 def generate_summary_tables(df):
     st.title("타이타닉 데이터 분석 종합 요약 표")
     st.markdown(f"**분석 데이터 파일:** `{FILE_PATH}`")
@@ -58,14 +58,12 @@ def generate_summary_tables(df):
     
     col_d1, col_d2 = st.columns(2)
     
-    # 연령별 사망자 표 (컬럼명은 한국어)
     age_death_summary = df.groupby('age_group')['Death'].sum().reset_index()
     age_death_summary = age_death_summary.rename(columns={'age_group': '연령대 (Graph Label)', 'Death': '사망자 수'})
     with col_d1:
         st.caption("연령별 사망자 수")
         st.dataframe(age_death_summary.set_index('연령대 (Graph Label)'))
         
-    # 선실 등급별 사망자 표 (컬럼명은 한국어)
     class_death_summary = df.groupby('pclass')['Death'].sum().reset_index()
     class_death_summary = class_death_summary.rename(columns={'pclass': '선실 등급', 'Death': '사망자 수'})
     class_death_summary['선실 등급'] = class_death_summary['선실 등급'].astype(str) + '등급'
@@ -81,14 +79,12 @@ def generate_summary_tables(df):
     
     col_s1, col_s2 = st.columns(2)
 
-    # 연령별 구조자 표
     age_survival_summary = df.groupby('age_group')['Survival'].sum().reset_index()
     age_survival_summary = age_survival_summary.rename(columns={'age_group': '연령대 (Graph Label)', 'Survival': '구조자 수'})
     with col_s1:
         st.caption("연령별 구조자 수")
         st.dataframe(age_survival_summary.set_index('연령대 (Graph Label)'))
         
-    # 선실 등급별 구조자 표
     class_survival_summary = df.groupby('pclass')['Survival'].sum().reset_index()
     class_survival_summary = class_survival_summary.rename(columns={'pclass': '선실 등급', 'Survival': '구조자 수'})
     class_survival_summary['선실 등급'] = class_survival_summary['선실 등급'].astype(str) + '등급'
@@ -98,7 +94,7 @@ def generate_summary_tables(df):
     
     st.markdown("---")
 
-# --- 시각화 함수 (그래프는 영어) ---
+# --- 시각화 함수 (그래프는 영어 라벨) ---
 def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다. (내부 라벨은 영어)"""
     
@@ -117,7 +113,6 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     
     st.subheader(f"📊 {target_name} by {x_label}")
 
-    # 그래프 크기: (6, 4)
     fig, ax = plt.subplots(figsize=(6, 4))
     
     if plot_type == 'Bar Chart':
@@ -141,7 +136,6 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
                         ha='center', 
                         fontsize=8)
         
-    # Matplotlib 라벨은 영어로 유지
     ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=12)
     ax.set_xlabel(x_label, fontsize=10)
     ax.set_ylabel(target_name, fontsize=10)
@@ -150,7 +144,6 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     max_val = plot_data[target].max()
     min_val = plot_data[target].min()
     
-    # 출력 메시지는 한국어로 유지
     if extreme_select == '가장 높은 지점':
         extreme_data = plot_data[plot_data[target] == max_val]
         extreme_label = '가장 높은 지점'
@@ -174,7 +167,6 @@ def plot_correlation(df, corr_type, plot_type):
         # 1. 히트맵 시각화 (크기: 6, 6)
         fig, ax = plt.subplots(figsize=(6, 6))
         
-        # 히트맵 라벨은 영어로 유지
         col_names = ['Survived', 'PClass', 'Age', 'Fare']
         corr_matrix.columns = col_names
         corr_matrix.index = col_names
@@ -210,33 +202,37 @@ def plot_correlation(df, corr_type, plot_type):
                 st.warning("분석할 수 있는 유효한 음의 상관관계 쌍이 없습니다.")
 
     elif plot_type == 'Scatter Plot':
-        # 산점도 시각화
+        # 1. 산점도 변수 선택 로직 보강
         
         if corr_type == '양의 상관관계':
             if not max_corr.empty:
                 pair = max_corr.index[0]
-                x_var, y_var = pair[0], pair[1]
+                # 변수 이름이 알파벳 순서대로 추출될 수 있으므로, 어떤 변수를 X/Y로 할지 결정
+                # 일반적으로 fare(운임)와 age(나이)가 양의 상관관계를 가질 때, fare를 Y축에 두는 경우가 많음
+                x_var, y_var = pair[0], pair[1] 
                 title_prefix = "Strongest Positive Correlation"
             else:
+                # Fallback: Fare vs Age (일반적인 양의 상관관계)
                 x_var, y_var = 'fare', 'age'
                 title_prefix = "Positive Correlation (Fallback: Fare vs Age)"
 
         else: # 음의 상관관계
             if not min_corr.empty:
                 pair = min_corr.index[0]
+                # Pclass(선실등급)과 Fare(운임)이 음의 상관관계를 가질 때, Pclass를 X축(범주형)에 두는 것이 일반적
                 x_var, y_var = pair[0], pair[1]
                 title_prefix = "Strongest Negative Correlation"
             else:
+                # Fallback: Pclass vs Fare (일반적인 음의 상관관계)
                 x_var, y_var = 'pclass', 'fare'
                 title_prefix = "Negative Correlation (Fallback: PClass vs Fare)"
-
+        
+        # 2. 산점도 시각화
         st.subheader(f"산점도: {title_prefix} - {x_var} vs {y_var}")
-        # 그래프 크기: (6, 4)
         fig, ax = plt.subplots(figsize=(6, 4))
         
         sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep', legend='full') 
         
-        # Matplotlib 라벨은 영어로 유지
         ax.set_title(f"Relationship between {x_var} and {y_var} (Grouped by Survival)", fontsize=12)
         ax.set_xlabel(x_var, fontsize=10)
         ax.set_ylabel(y_var, fontsize=10)
@@ -246,14 +242,13 @@ def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 비자명 상관관계 쌍을 추출합니다."""
     corr_matrix = df.corr()
     
-    # 자기 자신과의 상관관계 (1)을 NaN으로 처리
     np.fill_diagonal(corr_matrix.values, np.nan) 
     
     corr_unstacked = corr_matrix.unstack().sort_values(ascending=False).drop_duplicates()
     
     valid_corr = corr_unstacked.dropna()
     
-    # 1 또는 -1에 극단적으로 가까운 값 필터링
+    # 1 또는 -1에 극단적으로 가까운 값 필터링 (산점도 문제를 해결하는 핵심)
     valid_corr = valid_corr[abs(valid_corr) < 0.999999] 
 
     max_corr = valid_corr.head(1)
@@ -268,10 +263,6 @@ def main():
     if data is None:
         return
 
-    # ------------------
-    # 1. 사이드바 메뉴 구성 (한국어)
-    # ------------------
-
     st.sidebar.title("메뉴 선택")
     
     graph_type = st.sidebar.radio(
@@ -280,10 +271,6 @@ def main():
     )
     
     st.sidebar.markdown("---")
-    
-    # ------------------
-    # 2. 메인 화면 구성
-    # ------------------
     
     if graph_type == '종합 요약 (표)':
         generate_summary_tables(data)
@@ -351,3 +338,4 @@ def main():
         
 if __name__ == "__main__":
     main()
+    
