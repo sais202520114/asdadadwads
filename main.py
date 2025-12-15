@@ -168,4 +168,8 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == 'Heatmap':
-        # 1
+        # 1. 히트맵 시각화 (크기: 6, 6)
+        plt.figure(figsize=(6, 6))
+        fig, ax = plt.subplots(figsize=(6, 6))
+        
+        col
