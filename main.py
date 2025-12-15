@@ -3,21 +3,23 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm # 폰트 설정을 위한 라이브러리 추가
+import matplotlib.font_manager as fm 
 
 # 사용자님이 요청하신 파일명으로 정확히 설정
 FILE_PATH = "titanic.xls"
 
-# --- Matplotlib 한글 폰트 설정 (더욱 견고하게 수정) ---
+# --- Matplotlib 한글 폰트 설정 (최종 보강) ---
 plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
 
-# 시스템에서 흔히 사용되는 한글 폰트 이름을 검색합니다.
+# 시스템에 설치된 한글 폰트 검색 및 설정
 font_name = None
+# 흔히 사용되는 한글 폰트 이름을 리스트업하여 찾습니다.
+preferred_fonts = ['Malgun Gothic', 'AppleGothic', 'NanumGothic', 'NanumBarunGothic']
+
 for font_path in fm.findSystemFonts(fontpaths=None, fontext='ttf'):
     font_prop = fm.FontProperties(fname=font_path)
-    fname = font_prop.get_name()
-    if 'Malgun' in fname or 'AppleGothic' in fname or 'NanumGothic' in fname:
-        font_name = fname
+    if font_prop.get_name() in preferred_fonts:
+        font_name = font_prop.get_name()
         break
 
 if font_name:
@@ -25,7 +27,7 @@ if font_name:
 else:
     # 적절한 한글 폰트를 찾지 못한 경우
     plt.rcParams['font.family'] = 'sans-serif'
-    st.warning("경고: 시스템에서 적절한 한글 폰트를 찾을 수 없습니다. 그래프의 한글이 깨질 수 있습니다. '나눔고딕' 등의 폰트를 설치하고 코드를 수정해 보세요.")
+    st.warning("경고: 시스템에서 적절한 한글 폰트를 찾을 수 없습니다. 그래프의 한글이 깨질 수 있습니다. 나눔고딕 등의 폰트를 설치해 보세요.")
 
 
 # Streamlit 페이지 설정
@@ -68,7 +70,7 @@ def load_data(file_path):
     
     return df_clean
 
-# --- 요약 표 출력 함수 (새로운 메뉴 항목) ---
+# --- 요약 표 출력 함수 ---
 def generate_summary_tables(df):
     st.title("타이타닉 데이터 분석 종합 요약 표")
     st.markdown(f"**분석 데이터 파일명:** `{FILE_PATH}`")
@@ -149,7 +151,8 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
     
     # 1. 그래프 그리기
     if plot_type == '막대 그래프':
-        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='viridis', errorbar=None)
+        # 막대 그래프 색상을 'pastel'로 변경
+        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='pastel', errorbar=None)
         
         # 막대 위에 숫자 출력
         for p in ax.patches:
@@ -162,6 +165,7 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
                         fontsize=10)
             
     elif plot_type == '꺾은선 그래프':
+        # 꺾은선 그래프 색상을 'red'로 유지 (가독성 고려)
         sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='red')
         
         # 점 위에 숫자 출력
@@ -176,7 +180,7 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
     ax.set_title(f"{x_label_kor}별 {target_name_kor} ({plot_type})", fontsize=15)
     ax.set_xlabel(x_label_kor)
     ax.set_ylabel(target_name_kor)
-    st.pyplot(fig)
+    st.pyplot(fig) 
     
     # 3. 최대/최소 지점 출력
     max_val = plot_data[target].max()
@@ -202,19 +206,19 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == '히트맵':
-        # 1. 히트맵 시각화
+        # 1. 히트맵 시각화 (vlag 팔레트로 변경)
         fig, ax = plt.subplots(figsize=(10, 8))
         sns.heatmap(
             corr_matrix, 
             annot=True, 
             fmt=".2f", 
-            cmap='coolwarm', 
+            cmap='vlag', # 색상 변경
             cbar=True,
             linewidths=0.5,
             linecolor='black',
             ax=ax
         )
-        ax.set_title("타이타닉 속성 간 상관관계 히트맵")
+        ax.set_title("타이타닉 속성 간 상관관계 히트맵", fontsize=15)
         st.pyplot(fig) 
         
         # 2. 강한 상관관계 출력
@@ -250,8 +254,9 @@ def plot_correlation(df, corr_type, plot_type):
 
         st.subheader(f"산점도: {title_prefix} - {pair[0]} vs {pair[1]}")
         fig, ax = plt.subplots(figsize=(8, 6))
-        sns.scatterplot(x=pair[0], y=pair[1], data=df, ax=ax, hue='survived', palette='deep')
-        ax.set_title(f"{pair[0]}와 {pair[1]}의 {title_prefix} 관계 (생존 여부 기준)")
+        # 산점도 색상 팔레트를 'deep'으로 변경
+        sns.scatterplot(x=pair[0], y=pair[1], data=df, ax=ax, hue='survived', palette='deep') 
+        ax.set_title(f"{pair[0]}와 {pair[1]}의 {title_prefix} 관계 (생존 여부 기준)", fontsize=15)
         st.pyplot(fig) 
 
 def calculate_correlation(df):
