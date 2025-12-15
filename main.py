@@ -47,116 +47,6 @@ def load_data(file_path):
     
     return df_clean
 
-# --- 종합 요약에 총 인원 추가 ---
-def generate_summary_tables(df):
-    st.title("타이타닉 데이터 분석 종합 요약 표")
-    st.markdown(f"**분석 데이터 파일:** `{FILE_PATH}`")
-    st.markdown("---")
-    
-    total_people = len(df)
-    total_deaths = df['Death'].sum()
-    st.header(f"👥 총 인원 수: {total_people}명")
-    st.header(f"💔 총 사망자 수: {total_deaths}명")
-    st.subheader("사망자 세부 분석")
-    
-    col_d1, col_d2 = st.columns(2)
-    
-    age_death_summary = df.groupby('age_group')['Death'].sum().reset_index()
-    age_death_summary = age_death_summary.rename(columns={'age_group': '연령대 (Age Group)', 'Death': '사망자 수'})
-    with col_d1:
-        st.caption("연령별 사망자 수")
-        st.dataframe(age_death_summary.set_index('연령대 (Age Group)'))
-        
-    class_death_summary = df.groupby('pclass')['Death'].sum().reset_index()
-    class_death_summary = class_death_summary.rename(columns={'pclass': '선실 등급', 'Death': '사망자 수'})
-    class_death_summary['선실 등급'] = class_death_summary['선실 등급'].astype(str) + '등급'
-    with col_d2:
-        st.caption("선실 등급별 사망자 수")
-        st.dataframe(class_death_summary.set_index('선실 등급'))
-
-    st.markdown("---")
-
-    total_survival = df['Survival'].sum()
-    st.header(f"✅ 총 구조된 사람 수: {total_survival}명")
-    st.subheader("구조자 세부 분석")
-    
-    col_s1, col_s2 = st.columns(2)
-
-    age_survival_summary = df.groupby('age_group')['Survival'].sum().reset_index()
-    age_survival_summary = age_survival_summary.rename(columns={'age_group': '연령대 (Age Group)', 'Survival': '구조자 수'})
-    with col_s1:
-        st.caption("연령별 구조자 수")
-        st.dataframe(age_survival_summary.set_index('연령대 (Age Group)'))
-        
-    class_survival_summary = df.groupby('pclass')['Survival'].sum().reset_index()
-    class_survival_summary = class_survival_summary.rename(columns={'pclass': '선실 등급', 'Survival': '구조자 수'})
-    class_survival_summary['선실 등급'] = class_survival_summary['선실 등급'].astype(str) + '등급'
-    with col_s2:
-        st.caption("선실 등급별 구조자 수")
-        st.dataframe(class_survival_summary.set_index('선실 등급'))
-    
-    st.markdown("---")
-
-# --- 시각화 함수 ---
-def plot_counts(df, category, target, target_name, plot_type, extreme_select):
-    """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다."""
-    
-    if category == 'age':
-        plot_data = df.groupby('age_group')[target].sum().reset_index()
-        x_col = 'age_group'
-        x_label = 'Age Group'
-    else: # pclass
-        plot_data = df.groupby(category)[target].sum().reset_index()
-        x_col = category
-        x_label = 'Passenger Class'
-        plot_data[x_col] = plot_data[x_col].astype(str) + ' Class'
-
-    total_sum = plot_data[target].sum()
-    st.info(f"**Total {target_name} Count by {x_label}:** `{total_sum}`")
-    
-    st.subheader(f"📊 {target_name} by {x_label}")
-
-    plt.figure(figsize=(6, 4))
-    fig, ax = plt.subplots(figsize=(6, 4))
-    
-    if plot_type == 'Bar Chart':
-        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='YlGnBu', errorbar=None)
-        
-        for p in ax.patches:
-            ax.annotate(f'{int(p.get_height())}', 
-                        (p.get_x() + p.get_width() / 2., p.get_height()), 
-                        ha='center', va='center', 
-                        xytext=(0, 5), 
-                        textcoords='offset points', 
-                        fontsize=8)
-            
-    elif plot_type == 'Line Chart':
-        sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='blue')
-        
-        for x, y in zip(plot_data[x_col], plot_data[target]):
-            ax.annotate(f'{int(y)}', (x, y), 
-                        textcoords="offset points", 
-                        xytext=(0, 8), 
-                        ha='center', 
-                        fontsize=8)
-        
-    ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=12)
-    ax.set_xlabel(x_label, fontsize=10)
-    ax.set_ylabel(target_name, fontsize=10)
-    st.pyplot(fig, use_container_width=False) 
-    
-    max_val = plot_data[target].max()
-    min_val = plot_data[target].min()
-    
-    if extreme_select == '가장 높은 지점':
-        extreme_data = plot_data[plot_data[target] == max_val]
-        extreme_label = '가장 높은 지점'
-        st.success(f"🥇 **{extreme_label}:** {extreme_data[x_col].iloc[0]} ({max_val})")
-    else:
-        extreme_data = plot_data[plot_data[target] == min_val]
-        extreme_label = '가장 낮은 지점'
-        st.error(f"🥉 **{extreme_label}:** {extreme_data[x_col].iloc[0]} ({min_val})")
-
 # --- 상관관계 분석 함수 수정 ---
 def plot_correlation(df, corr_type, plot_type):
     """상관관계를 산점도 또는 히트맵으로 그립니다. (내부 라벨은 영어)"""
@@ -208,25 +98,22 @@ def plot_correlation(df, corr_type, plot_type):
                 st.warning("분석할 수 있는 유효한 음의 상관관계 쌍이 없습니다.")
 
     elif plot_type == 'Scatter Plot':
-        x_var, y_var = 'age', 'fare' 
-        
-        # 산점도 시각화
-        st.subheader(f"산점도: {x_var.capitalize()} vs {y_var.capitalize()}")
+        # pclass에 따라 산점도 그리기
+        st.subheader(f"산점도: pclass별 연령과 요금")
         
         plt.figure(figsize=(6, 4))
         fig, ax = plt.subplots(figsize=(6, 4))
         
-        sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep', legend='full') 
+        sns.scatterplot(x='age', y='fare', data=df, hue='pclass', palette='deep', style='pclass', ax=ax, legend='full')
         
-        ax.set_title(f"Scatter Plot: {x_var.capitalize()} vs {y_var.capitalize()} (Grouped by Survival)", fontsize=12)
-        ax.set_xlabel(x_var.capitalize(), fontsize=10)
-        ax.set_ylabel(y_var.capitalize(), fontsize=10)
+        ax.set_title(f"Scatter Plot: Age vs Fare (Grouped by Passenger Class)", fontsize=12)
+        ax.set_xlabel('Age', fontsize=10)
+        ax.set_ylabel('Fare', fontsize=10)
         
         st.pyplot(fig, use_container_width=False) 
 
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 비자명 상관관계 쌍을 추출합니다."""
-    # pclass가 제외된 numeric_df를 받음: ['survived', 'age', 'fare']
     corr_matrix = df.corr()
     
     np.fill_diagonal(corr_matrix.values, np.nan) 
