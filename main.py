@@ -162,8 +162,8 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
     
     # 1. 그래프 그리기
     if plot_type == '막대 그래프':
-        # 요청하신 대로 밝고 화사한 파란색 그라데이션 ('light:blue') 적용
-        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='light:blue', errorbar=None)
+        # 요청하신 대로 청량하고 예쁜 파란색 그라데이션 ('YlGnBu') 적용
+        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='YlGnBu', errorbar=None)
         
         # 막대 위에 숫자 출력
         for p in ax.patches:
@@ -176,8 +176,8 @@ def plot_counts(df, category, target, target_name_kor, plot_type, extreme_select
                         fontsize=10)
             
     elif plot_type == '꺾은선 그래프':
-        # 꺾은선 그래프는 밝은 파란색 계열 중 단일 색상으로 지정 (가독성 고려)
-        sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='#4682B4') # Steel Blue
+        # 꺾은선 그래프는 선명한 파란색 단일 색상으로 지정 (가독성 고려)
+        sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o', color='blue')
         
         # 점 위에 숫자 출력
         for x, y in zip(plot_data[x_col], plot_data[target]):
@@ -217,13 +217,13 @@ def plot_correlation(df, corr_type, plot_type):
     st.header(f"🔗 상관관계 분석 결과 ({plot_type})")
     
     if plot_type == '히트맵':
-        # 1. 히트맵 시각화 (밝은 파란색 그라데이션 'light:blue' 적용)
+        # 1. 히트맵 시각화 (청량한 파란색 그라데이션 'YlGnBu' 적용)
         fig, ax = plt.subplots(figsize=(10, 8))
         sns.heatmap(
             corr_matrix, 
             annot=True, 
             fmt=".2f", 
-            cmap='light:blue', # 색상 변경
+            cmap='YlGnBu', # 색상 변경
             cbar=True,
             linewidths=0.5,
             linecolor='black',
