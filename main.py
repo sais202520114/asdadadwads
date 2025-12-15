@@ -286,7 +286,7 @@ def calculate_correlation(df):
     
     return corr_matrix, max_corr, min_corr
 
-# --- 분위수 및 이상치 계산/출력 함수 (맨 아래에 출력) ---
+# --- 분위수 및 이상치 계산/출력 함수 (박스 플롯 메뉴에서만 출력) ---
 def analyze_quantiles_and_outliers(df_raw):
     """주어진 원본 데이터프레임의 'age'와 'fare'에 대한 분위수와 이상치 개수를 계산하고 출력합니다."""
     st.markdown("---")
@@ -339,7 +339,7 @@ def analyze_quantiles_and_outliers(df_raw):
 
 # --- 메인 앱 로직 ---
 def main():
-    # 1. 데이터 로드 (분석에 사용할 원본 데이터)
+    # 1. 데이터 로드
     data = load_data(FILE_PATH)
     if data is None:
         return
@@ -427,9 +427,8 @@ def main():
     
     elif graph_type == '박스 플롯':
         plot_boxplot(data)
-        
-    # 4. 모든 그래프/표 출력 후, 맨 아래에 분석 결과 출력
-    analyze_quantiles_and_outliers(data_raw)
+        # 박스 플롯 메뉴를 선택했을 때만 분위수 및 이상치 분석 결과를 출력합니다.
+        analyze_quantiles_and_outliers(data_raw)
 
 
 if __name__ == "__main__":
