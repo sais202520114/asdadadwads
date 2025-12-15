@@ -86,7 +86,8 @@ def plot_boxplot(df):
     
     fig, ax = plt.subplots(figsize=(4, 3))
     
-    sns.boxplot(data=df[['age', 'fare']], ax=ax, palette="Set2")
+    # 'data'는 0~100세 기준으로 이상치가 처리되고 정규화된 값입니다.
+    sns.boxplot(data=df[['age', 'fare']], ax=ax, palette="Set2") 
     ax.set_title("Box Plot of Age and Fare (Normalized)", fontsize=10)
     ax.set_ylabel('Normalized Value', fontsize=8)
     
@@ -292,7 +293,7 @@ def analyze_quantiles_and_outliers(df_raw):
     analysis_vars = ['age', 'fare']
     results = {}
     
-    # 1. 계산 로직 수행 (df_raw는 나이 이상치가 0세 미만, 100세 초과로만 처리되어 있음)
+    # 1. 계산 로직 수행
     for var in analysis_vars:
         Q1 = df_raw[var].quantile(0.25)
         Q2 = df_raw[var].quantile(0.5) # 중앙값 (2사분위수)
@@ -302,7 +303,7 @@ def analyze_quantiles_and_outliers(df_raw):
         lower_bound = Q1 - 1.5 * IQR
         upper_bound = Q3 + 1.5 * IQR
         
-        # 이상치 개수 계산 (IQR 기준) - 요금의 이상치 개수 확인용
+        # 이상치 개수 계산 (IQR 기준)
         outliers_count = len(df_raw[
             (df_raw[var].notna()) & ((df_raw[var] < lower_bound) | (df_raw[var] > upper_bound))
         ])
@@ -322,7 +323,7 @@ def analyze_quantiles_and_outliers(df_raw):
         st.markdown(f"**1분위수 (Q1):** `{results['age']['Q1']:.2f}`")
         st.markdown(f"**2분위수 (중앙값, Q2):** `{results['age']['Q2_Median']:.2f}`")
         st.markdown(f"**3분위수 (Q3):** `{results['age']['Q3']:.2f}`")
-        st.error(f"**❗ IQR 기반 이상치 개수:** `{results['age']['Outliers_Count']}개` (나이는 0~100세 기준으로 처리됨)")
+        st.error(f"**❗ IQR 기반 이상치 개수:** `{results['age']['Outliers_Count']}개` (이는 통계적 분류이며, **처리 기준은 0~100세입니다**)")
 
     with col_a2:
         st.subheader("요금 (Fare) 분석")
@@ -350,9 +351,9 @@ def main():
     # 2. 전처리 단계 (이상치 처리, 재결측치 처리, 정규화) - data_raw와 분리
     # data는 모델링/정규화/박스플롯용으로 사용. 나이 이상치 처리 로직이 변경됨.
     data = handle_missing_data(data)
-    data = handle_outliers(data) # <--- 나이 이상치 처리 기준이 0~100세로 변경됨
+    data = handle_outliers(data) # 나이 이상치 처리 기준이 0~100세로 변경되어 적용됨
     data = handle_missing_data(data)
-    data = create_analysis_columns(data) # Death/Survival 컬럼만 재사용 (age_group은 data_raw 기준)
+    data = create_analysis_columns(data) # Death/Survival 컬럼만 재사용
     data = normalize_data(data)
 
     st.sidebar.title("메뉴 선택")
@@ -366,7 +367,6 @@ def main():
     
     # 3. 메뉴별 기능 호출
     if graph_type == '종합 요약 (표)':
-        # 연령대 정보가 정확한 data_raw를 사용합니다.
         generate_summary_tables(data_raw)
 
     elif graph_type == '사망/구조자 수 분석 (그래프)':
@@ -408,7 +408,6 @@ def main():
             ('가장 높은 지점', '가장 낮은 지점'),
             index=0 
         )
-        # 연령대 정보가 정확한 data_raw를 사용합니다.
         plot_counts(data_raw, selected_category_col, target_col, target_name, plot_style, extreme_select_kor)
 
     elif graph_type == '상관관계 분석 (그래프)':
@@ -425,13 +424,10 @@ def main():
             ('Scatter Plot', 'Heatmap')
         )
         
-        # 정규화된 값이 필요한 상관관계 분석에는 data를 사용합니다.
         plot_correlation(data, corr_type_kor, corr_plot_type)
     
     elif graph_type == '박스 플롯':
-        # 정규화된 값이 필요한 박스 플롯에는 data를 사용합니다.
         plot_boxplot(data)
-        # 박스 플롯 메뉴에서만 분위수 및 이상치 분석 결과를 출력합니다.
         analyze_quantiles_and_outliers(data_raw)
 
 
