@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 데이터 로드 및 전처리 함수 (변동 없음) ---
+# --- 데이터 로드 및 전처리 함수 ---
 @st.cache_data
 def load_data(file_path):
     """엑셀 파일을 로드하고 전처리를 수행합니다."""
@@ -47,7 +47,7 @@ def load_data(file_path):
     
     return df_clean
 
-# --- 요약 표 출력 함수 (UI는 한국어, 변동 없음) ---
+# --- 요약 표 출력 함수 (UI는 한국어) ---
 def generate_summary_tables(df):
     st.title("타이타닉 데이터 분석 종합 요약 표")
     st.markdown(f"**분석 데이터 파일:** `{FILE_PATH}`")
@@ -95,7 +95,7 @@ def generate_summary_tables(df):
     
     st.markdown("---")
 
-# --- 시각화 함수 (그래프 제목/라벨은 영어, 변동 없음) ---
+# --- 시각화 함수 (그래프 제목/라벨은 영어) ---
 def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     """사망/구조자 수를 막대 또는 꺾은선 그래프로 그립니다. (내부 라벨은 영어)"""
     
@@ -141,7 +141,8 @@ def plot_counts(df, category, target, target_name, plot_type, extreme_select):
     ax.set_title(f"{target_name} by {x_label} ({plot_type})", fontsize=12)
     ax.set_xlabel(x_label, fontsize=10)
     ax.set_ylabel(target_name, fontsize=10)
-    st.pyplot(fig, use_container_width=False)     
+    st.pyplot(fig, use_container_width=False) 
+    
     max_val = plot_data[target].max()
     min_val = plot_data[target].min()
     
@@ -186,7 +187,8 @@ def plot_correlation(df, corr_type, plot_type):
             ax=ax
         )
         ax.set_title("Correlation Heatmap of Titanic Attributes", fontsize=12)
-        st.pyplot(fig, use_container_width=False)         
+        st.pyplot(fig, use_container_width=False) 
+        
         # 2. 강한 상관관계 출력
         if corr_type == '양의 상관관계':
             if not max_corr.empty:
@@ -207,52 +209,36 @@ def plot_correlation(df, corr_type, plot_type):
         # 1. 산점도 변수 선택 로직 (양/음 상관관계에 따라 변수 분리)
         
         if corr_type == '양의 상관관계':
+            # 양의 상관관계: Age vs Fare (연속형 변수만 사용)
             if not max_corr.empty:
                 pair = max_corr.index[0]
                 x_var, y_var = pair[0], pair[1] 
                 title_prefix = "Strongest Positive Correlation"
             else:
-                # Fallback: Age vs Fare (연속형 변수)
                 x_var, y_var = 'age', 'fare'
                 title_prefix = "Positive Correlation (Fallback: Age vs Fare)"
 
+            # Age-Fare는 연속형 변수이므로 이진 변수 필터링 로직을 통과
+            
         else: # 음의 상관관계
+            # 음의 상관관계: Survived vs Age/Fare (시각적 차이를 위해 이진 변수 쌍을 강제 사용)
             if not min_corr.empty:
                 pair = min_corr.index[0]
                 x_var, y_var = pair[0], pair[1]
                 title_prefix = "Strongest Negative Correlation"
             else:
-                # Fallback: Survived vs Age (일반적인 음의 상관관계)
+                # Fallback: Survived vs Age
                 x_var, y_var = 'survived', 'age'
                 title_prefix = "Negative Correlation (Fallback: Survived vs Age)"
         
-        # === 핵심 수정 로직: X, Y 축에 이진 변수(survived) 사용 방지 ===
-        # 만약 선택된 변수 중 하나라도 'survived'라면, 다른 연속형 변수를 사용하여 산점도를 의미있게 만듭니다.
-        if x_var == 'survived' or y_var == 'survived':
-            # 'survived'가 포함된 경우 (주로 음의 상관관계 선택 시), Age vs Fare를 강제로 사용
-            # 이렇게 해야 Image 1과 같은 의미있는 연속 분포를 볼 수 있습니다.
-            # 하지만, 요청하신대로 '음의 상관관계'와 '양의 상관관계'가 다른 그래프를 출력하도록
-            # 'survived'가 포함된 쌍을 사용하되, Survived를 x나 y축에 두지 않고 'hue'로만 사용하도록 수정합니다.
-            
-            # 음의 상관관계 쌍: Survived-Age, Survived-Fare.
-            # -> 이 경우 X=Age, Y=Fare를 사용하고 제목만 음의 상관관계와 관련 있도록 변경합니다.
-            x_var, y_var = 'age', 'fare'
-            # 제목을 수정하여 음의 상관관계에 대한 분석임을 표시
-            title_prefix = f"Age vs Fare (Colored by Strongest Negative Pair: {pair[0]} vs {pair[1]})"
-            
-        else:
-            # 양의 상관관계 쌍: Age-Fare. 이 경우는 그대로 사용
-            pass
-
-
         # 2. 산점도 시각화
         st.subheader(f"산점도: {title_prefix} ({x_var} vs {y_var})")
         
-        # === 크기 강제 설정 ===
         plt.figure(figsize=(6, 4))
         fig, ax = plt.subplots(figsize=(6, 4))
         
-        # X, Y 축에 연속형 변수만 사용하고, Survived를 Hue (색상)으로만 사용합니다.
+        # Survived가 X/Y 축에 올 경우 (음의 상관관계 선택 시), 수직선 형태의 그래프가 나옴.
+        # 양의 상관관계 선택 시 (Age vs Fare), 일반적인 산점도 형태가 나옴.
         sns.scatterplot(x=x_var, y=y_var, data=df, ax=ax, hue='survived', palette='deep', legend='full') 
         
         # 3. 축 라벨과 포맷팅
@@ -265,6 +251,7 @@ def plot_correlation(df, corr_type, plot_type):
         ax.ticklabel_format(style='plain', useOffset=False, axis='y')
             
         st.pyplot(fig, use_container_width=False) 
+
 def calculate_correlation(df):
     """상관 행렬을 계산하고 가장 강한 비자명 상관관계 쌍을 추출합니다."""
     # pclass가 제외된 numeric_df를 받음: ['survived', 'age', 'fare']
