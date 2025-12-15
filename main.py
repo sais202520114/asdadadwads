@@ -307,20 +307,30 @@ def analyze_quantiles_and_outliers(df_raw):
             outliers_count = len(df_raw[
                 (df_raw[var].notna()) & ((df_raw[var] < 0) | (df_raw[var] > 100))
             ])
+            vip_count, general_count, upper_bound = None, None, None
             
         elif var == 'fare':
             # 요금은 기존 IQR 통계적 이상치 기준으로 유지
             lower_bound = Q1 - 1.5 * IQR
-            upper_bound = Q3 + 1.5 * IQR
-            outliers_count = len(df_raw[
-                (df_raw[var].notna()) & ((df_raw[var] < lower_bound) | (df_raw[var] > upper_bound))
+            upper_bound = Q3 + 1.5 * IQR 
+            
+            # VIP (상한 초과) 개수 계산
+            vip_count = len(df_raw[
+                (df_raw[var].notna()) & (df_raw[var] > upper_bound)
             ])
-        
+            # 일반인 (상한 이하) 개수 계산 (결측치 제외)
+            general_count = len(df_raw[df_raw[var].notna()]) - vip_count
+
+            outliers_count = vip_count 
+            
         results[var] = {
             'Q1': Q1,
             'Q2_Median': Q2,
             'Q3': Q3,
-            'Outliers_Count': outliers_count
+            'Outliers_Count': outliers_count,
+            'Upper_Bound': upper_bound,
+            'VIP_Count': vip_count,
+            'General_Count': general_count,
         }
 
     # 2. 결과 출력
@@ -334,11 +344,14 @@ def analyze_quantiles_and_outliers(df_raw):
         st.error(f"**❗ 처리된 이상치 개수 (0~100세 기준):** `{results['age']['Outliers_Count']}개`")
 
     with col_a2:
-        st.subheader("요금 (Fare) 분석")
+        st.subheader("요금 (Fare) 분석 (VIP/일반인 분류)")
         st.markdown(f"**1분위수 (Q1):** `{results['fare']['Q1']:.2f}`")
-        st.markdown(f"**2분위수 (중앙값, Q2):** `{results['fare']['Q2_Median']:.2f}`")
         st.markdown(f"**3분위수 (Q3):** `{results['fare']['Q3']:.2f}`")
-        st.error(f"**❗ IQR 기반 이상치 개수:** `{results['fare']['Outliers_Count']}개`")
+        st.markdown(f"**기준 요금 (Upper Bound):** `{results['fare']['Upper_Bound']:.2f}`")
+        st.markdown("---")
+        
+        st.success(f"**👑 VIP (기준 요금 초과) 인원:** `{results['fare']['VIP_Count']}명`")
+        st.info(f"**🚶 일반인 (기준 요금 이하) 인원:** `{results['fare']['General_Count']}명`")
         
     st.markdown("---")
 
