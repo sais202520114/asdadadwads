@@ -4,7 +4,6 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
-import io
 
 # --- 1. 환경 설정 ---
 plt.rcParams['font.family'] = 'sans-serif'
@@ -14,7 +13,7 @@ st.set_page_config(page_title="Titanic Dashboard", layout="wide")
 
 FILE_PATH = "titanic.xls"
 
-# --- 2. 데이터 처리 ---
+# --- 2. 데이터 로드 및 전처리 ---
 @st.cache_data
 def load_and_process(file_path):
     try:
@@ -35,14 +34,7 @@ def load_and_process(file_path):
     df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, include_lowest=True)
     return df
 
-# --- 3. 크기 강제 조절 함수 (핵심) ---
-def render_small_plot(fig, width=300):
-    """그래프를 이미지로 변환하여 너비를 강제 고정함"""
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches='tight')
-    st.image(buf, width=width) # 여기서 너비(픽셀)를 직접 꽂아버림
-
-# --- 4. 메인 로직 ---
+# --- 3. 메인 앱 실행 ---
 def main():
     df = load_and_process(FILE_PATH)
     if df is None: return
@@ -60,6 +52,7 @@ def main():
         c1.metric("Total", f"{len(df)}")
         c2.metric("Death", f"{df['Death'].sum()}")
         c3.metric("Surv", f"{df['Survival'].sum()}")
+        st.markdown("---")
         st.dataframe(df.head(10), use_container_width=True)
 
     elif menu == '분석 그래프':
@@ -67,31 +60,31 @@ def main():
         cat = st.sidebar.selectbox("기준", ['age_group', 'pclass'])
         plot_data = df.groupby(cat, observed=True)[target].sum().reset_index()
         
-        st.write(f"**{target} by {cat}**")
-        fig, ax = plt.subplots(figsize=(4, 2.5))
-        sns.barplot(data=plot_data, x=cat, y=target, ax=ax, palette='viridis')
-        ax.set_title(f"{target} by {cat}", fontsize=9)
-        ax.tick_params(labelsize=8)
+        # [2, 1] 비율로 나누어 그래프가 화면의 약 60%만 차지하게 함 (적당한 크기)
+        col_plot, col_empty = st.columns([2, 1]) 
         
-        # st.pyplot 대신 render_small_plot 사용 (너비 400픽셀 제한)
-        render_small_plot(fig, width=400)
+        with col_plot:
+            st.subheader(f"Analysis: {target} by {cat}")
+            fig, ax = plt.subplots(figsize=(8, 4)) # figsize를 다시 적당히 키움
+            sns.barplot(data=plot_data, x=cat, y=target, ax=ax, palette='viridis')
+            ax.set_title(f"{target} by {cat} (English Chart)", fontsize=12)
+            st.pyplot(fig) # 컨테이너 너비에 맞춤 (하지만 컬럼이 이미 제한됨)
 
     elif menu == '상관관계/박스플롯':
+        # 2개 컬럼으로 나누어 너무 크지도 작지도 않게 배치
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**Correlation Heatmap**")
-            fig1, ax1 = plt.subplots(figsize=(3, 2.5))
-            sns.heatmap(df[['survived', 'age', 'fare']].corr(), annot=True, cmap='coolwarm', ax=ax1, annot_kws={"size": 7})
-            ax1.tick_params(labelsize=7)
-            render_small_plot(fig1, width=300)
+            st.write("**Correlation Matrix**")
+            fig1, ax1 = plt.subplots(figsize=(6, 5))
+            sns.heatmap(df[['survived', 'age', 'fare']].corr(), annot=True, cmap='coolwarm', ax=ax1)
+            st.pyplot(fig1)
             
         with col2:
-            st.write("**Box Plot**")
-            fig2, ax2 = plt.subplots(figsize=(3, 2.5))
+            st.write("**Normalized Box Plot**")
+            fig2, ax2 = plt.subplots(figsize=(6, 5))
             sns.boxplot(data=df_norm[['age', 'fare']], ax=ax2)
-            ax2.tick_params(labelsize=7)
-            render_small_plot(fig2, width=300)
+            st.pyplot(fig2)
 
 if __name__ == "__main__":
     main()
