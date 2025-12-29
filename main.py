@@ -13,18 +13,17 @@ sns.set_theme(style="whitegrid")
 # 페이지 설정
 st.set_page_config(page_title="Titanic Analysis Full Dashboard", layout="wide")
 
-# 2. 데이터 로드 및 전처리 (캐싱 적용)
+# 2. 데이터 로드 및 전처리 (사용자님 제공 원본 로직)
 @st.cache_data
 def load_full_data():
     try:
         # 타이타닉 데이터 로드 (xls 파일)
         df = pd.read_excel("titanic.xls", engine='xlrd')
     except Exception as e:
-        # 파일이 없거나 엔진 문제가 있을 경우 에러 메시지
-        st.error(f"파일을 읽을 수 없습니다. 'titanic.xls' 파일이 같은 폴더에 있는지 확인하세요. 에러: {e}")
+        st.error(f"파일을 읽을 수 없습니다. 'titanic.xls' 파일을 확인하세요. 에러: {e}")
         return None
 
-    # 필요한 컬럼만 추출
+    # 필요한 컬럼 추출
     cols = ['pclass', 'survived', 'sex', 'age', 'fare']
     df = df[cols].copy()
 
@@ -34,11 +33,11 @@ def load_full_data():
     df['age'] = df['age'].fillna(df['age'].median())
     df['fare'] = df['fare'].fillna(df['fare'].median())
 
-    # 분석용 파생 변수 (사망/구조 여부 명시)
+    # 분석용 파생 변수
     df['Death'] = 1 - df['survived']
     df['Survival'] = df['survived']
 
-    # 연령대 그룹화 (0세부터 70세 이상까지)
+    # 연령대 그룹화
     bins = [0, 10, 20, 30, 40, 50, 60, 70, 100]
     labels = ['0-10', '11-20', '21-30', '31-40', '41-50', '51-60', '61-70', '71+']
     df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, include_lowest=True)
@@ -57,13 +56,14 @@ def main():
 
         # 사이드바 메뉴 구성
         st.sidebar.title("🚢 타이타닉 분석")
-        menu = st.sidebar.radio("원하는 분석을 선택하세요", ['종합 대시보드', '상세 그래프', '심화 통계 분석'])
+        menu = st.sidebar.radio("원하는 분석을 선택하세요", 
+                                ['종합 대시보드', '사망/구조 분석 시각화', '심화 통계 분석'])
 
         # --- [메뉴 1: 종합 대시보드] ---
         if menu == '종합 대시보드':
             st.title("📊 타이타닉 데이터 종합 현황")
             
-            # 상단 핵심 지표(Metrics)
+            # 상단 핵심 지표
             m1, m2, m3 = st.columns(3)
             m1.metric("전체 승객 수", f"{len(df)} 명")
             m2.metric("총 사망자", f"{df['Death'].sum()} 명", delta_color="inverse")
@@ -85,8 +85,8 @@ def main():
                 st.subheader("🏢 객실 등급별 구조 통계")
                 st.table(df.groupby('pclass')['Survival'].sum())
 
-        # --- [메뉴 2: 상세 그래프] ---
-        elif menu == '상세 그래프':
+        # --- [메뉴 2: 사망/구조 분석 시각화] ---
+        elif menu == '사망/구조 분석 시각화':
             st.title("📈 시각화 차트 분석")
             
             # 사용자 선택 인터페이스
@@ -125,11 +125,11 @@ def main():
         elif menu == '심화 통계 분석':
             st.title("🔍 수치 데이터 심화 분석")
             
+            # 1. 히트맵 & 분위수
             c1, c2 = st.columns([1.5, 1])
             with c1:
                 st.subheader("1. 변수 간 상관관계 (Heatmap)")
                 fig_corr, ax_corr = plt.subplots()
-                # 수치형 변수간 상관계수 계산
                 corr = df[['survived', 'age', 'fare', 'pclass']].corr()
                 sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", ax=ax_corr)
                 st.pyplot(fig_corr)
@@ -140,14 +140,25 @@ def main():
                     q1 = df[item].quantile(0.25)
                     med = df[item].median()
                     q3 = df[item].quantile(0.75)
-                    st.info(f"📍 **{item.upper()}** 통계\n- Q1 (25%): {q1:.2f}\n- 중앙값: {med:.2f}\n- Q3 (75%): {q3:.2f}")
+                    st.info(f"📍 **{item.upper()}** 통계\n- Q1: {q1:.2f} | Median: {med:.2f} | Q3: {q3:.2f}")
             
             st.divider()
-            st.subheader("3. 정규화 데이터 분포 비교 (Boxplot)")
-            st.write("나이(Age)와 요금(Fare)의 분포를 동일한 스케일(0~1)로 비교합니다.")
+
+            # 3. 박스플롯 (Boxplot)
+            st.subheader("3. 정규화 데이터 분포 및 이상치 확인 (Boxplot)")
+            st.write("나이(Age)와 요금(Fare)의 분포를 비교합니다.")
             fig_box, ax_box = plt.subplots(figsize=(12, 4))
             sns.boxplot(data=df_norm[['age', 'fare']], ax=ax_box, orient='h', palette='Set2')
             st.pyplot(fig_box)
+
+            st.divider()
+
+            # 4. 산점도 (Scatter Plot)
+            st.subheader("4. 나이와 요금의 상관관계 (Scatter Plot)")
+            fig_scatter, ax_scatter = plt.subplots(figsize=(10, 6))
+            sns.scatterplot(data=df, x='age', y='fare', hue='survived', alpha=0.7, ax=ax_scatter, palette='viridis')
+            ax_scatter.set_title("Age vs Fare Relationship", fontsize=15)
+            st.pyplot(fig_scatter)
 
 if __name__ == "__main__":
     main()
