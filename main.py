@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 
 # 1. 그래프 한글 깨짐 방지 및 스타일 설정
-plt.rcParams['font.family'] = 'sans-serif'
+# 환경에 따라 나눔고딕이나 맑은 고딕 등 설치된 폰트를 우선 적용하도록 설정합니다.
+plt.rcParams['font.family'] = 'Malgun Gothic' # Windows용
 plt.rcParams['axes.unicode_minus'] = False
 sns.set_theme(style="whitegrid")
 
@@ -17,7 +18,7 @@ st.set_page_config(page_title="Titanic Analysis Full Dashboard", layout="wide")
 @st.cache_data
 def load_full_data():
     try:
-        # 타이타닉 데이터 로드
+        # 타이타닉 데이터 로드 (xlrd 엔진 사용)
         df = pd.read_excel("titanic.xls", engine='xlrd')
         
         # 분석 핵심 컬럼 추출
@@ -41,7 +42,7 @@ def load_full_data():
         
         return df
     except Exception as e:
-        st.error(f"에러 발생: {e}")
+        st.error(f"데이터를 로드하는 중 에러가 발생했습니다: {e}")
         return None
 
 # 3. 메인 대시보드 실행
@@ -73,11 +74,15 @@ def main():
             col_left, col_right = st.columns(2)
             with col_left:
                 st.subheader("💀 사망 통계 (연령대/등급)")
+                st.write("**연령대별 사망자**")
                 st.table(df.groupby('age_group', observed=False)['Death'].sum())
+                st.write("**객실 등급별 사망자**")
                 st.table(df.groupby('pclass')['Death'].sum())
             with col_right:
                 st.subheader("✅ 구조 통계 (연령대/등급)")
+                st.write("**연령대별 구조자**")
                 st.table(df.groupby('age_group', observed=False)['Survival'].sum())
+                st.write("**객실 등급별 구조자**")
                 st.table(df.groupby('pclass')['Survival'].sum())
 
         # --- [메뉴 2: 사망/구조 분석 시각화] ---
@@ -95,18 +100,21 @@ def main():
             
             if chart_type == 'Bar':
                 plot_data = df.groupby(category, observed=False)[target_col].sum().reset_index()
-                sns.barplot(data=plot_data, x=category, y=target_col, ax=ax, palette='magma')
-            elif chart_type == 'Line':
-                plot_data = df.groupby(category, observed=False)[target_col].sum().reset_index()
-                sns.lineplot(data=plot_data, x=category, y=target_col, ax=ax, marker='o', color='teal')
-            elif chart_type == 'Histogram':
-                # 히스토그램은 분포 확인을 위해 hue를 생존 여부로 설정
-                sns.histplot(data=df, x='age', hue='survived', multiple="stack", kde=True, ax=ax, palette='viridis')
-                ax.set_title("Age Distribution by Survival Status", fontsize=14)
-
-            if chart_type != 'Histogram':
+                sns.barplot(data=plot_data, x=category, y=target_col, ax=ax, palette='magma', hue=category, legend=False)
                 ax.set_title(f"{target_label} Distribution by {category.upper()}", fontsize=14)
             
+            elif chart_type == 'Line':
+                plot_data = df.groupby(category, observed=False)[target_col].sum().reset_index()
+                sns.lineplot(data=plot_data, x=category, y=target_col, ax=ax, marker='o', color='teal', group=1)
+                ax.set_title(f"{target_label} Trend by {category.upper()}", fontsize=14)
+            
+            elif chart_type == 'Histogram':
+                # 히스토그램은 전체 연령 분포에서 생존 여부를 확인
+                sns.histplot(data=df, x='age', hue='survived', multiple="stack", kde=True, ax=ax, palette='viridis')
+                ax.set_title("Age Distribution by Survival Status", fontsize=14)
+                ax.set_xlabel("Age")
+                ax.set_ylabel("Count")
+
             st.pyplot(fig)
 
         # --- [메뉴 3: 심화 통계 분석] ---
@@ -116,7 +124,9 @@ def main():
             # 1. 히트맵 (Heatmap)
             st.subheader("1. 변수 간 상관관계 (Heatmap)")
             fig_corr, ax_corr = plt.subplots(figsize=(8, 6))
-            corr = df[['survived', 'age', 'fare', 'pclass']].corr()
+            # 수치형 데이터만 선택하여 상관계수 산출
+            numeric_df = df[['survived', 'age', 'fare', 'pclass']]
+            corr = numeric_df.corr()
             sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", ax=ax_corr)
             st.pyplot(fig_corr)
             
@@ -126,7 +136,7 @@ def main():
             c1, c2 = st.columns([1.5, 1])
             with c1:
                 st.subheader("2. 정규화 데이터 분포 (Boxplot)")
-                fig_box, ax_box = plt.subplots()
+                fig_box, ax_box = plt.subplots(figsize=(8, 5))
                 sns.boxplot(data=df_norm[['age', 'fare']], ax=ax_box, orient='h', palette='Set2')
                 st.pyplot(fig_box)
             with c2:
@@ -134,7 +144,10 @@ def main():
                 for item in ['age', 'fare']:
                     q = df[item].quantile([0.25, 0.5, 0.75])
                     st.write(f"📍 **{item.upper()}**")
-                    st.write(f"Q1: {q[0.25]:.2f} | Med: {q[0.5]:.2f} | Q3: {q[0.75]:.2f}")
+                    st.write(f"Q1 (25%): {q[0.25]:.2f}")
+                    st.write(f"Med (50%): {q[0.5]:.2f}")
+                    st.write(f"Q3 (75%): {q[0.75]:.2f}")
+                    st.write("---")
 
             st.divider()
 
