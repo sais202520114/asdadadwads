@@ -6,84 +6,170 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 import os
 
-# --- 1. 환경 설정 ---
-# 한글 깨짐 방지: 시스템 폰트가 없어도 오류 안 나게 설정
-plt.rcParams['font.family'] = 'sans-serif'
+# --- 1. 환경 설정 및 폰트 (오류 방지) ---
+plt.rcParams['font.family'] = 'sans-serif' 
 plt.rcParams['axes.unicode_minus'] = False
 
-st.set_page_config(page_title="타이타닉 대시보드", layout="wide")
+st.set_page_config(
+    page_title="타이타닉 데이터 분석 대시보드",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# --- 2. 데이터 로드 (오류 방지 로직 강화) ---
+FILE_PATH = "titanic.xls"
+
+# --- 2. 데이터 처리 함수 (원본 로직 유지 + 보강) ---
 @st.cache_data
 def load_data(file_path):
-    if not os.path.exists(file_path):
-        st.error(f"❌ 파일을 찾을 수 없습니다: {file_path}")
-        return None
-    
     try:
-        # xls는 xlrd 엔진이 필요함. 설치 안 되어 있을 경우를 위해 엔진 시도
-        try:
+        # 엔진 시도: xlrd(xls), openpyxl(xlsx)
+        if file_path.endswith('.xls'):
             df = pd.read_excel(file_path, engine='xlrd')
-        except:
-            df = pd.read_excel(file_path) # 기본 엔진 시도
-            
-        # 필수 컬럼 존재 확인
-        cols = ['pclass', 'survived', 'sex', 'age', 'fare']
-        df = df[cols].copy()
-        
-        # 기본 전처리 (결측치)
-        df['pclass'] = df['pclass'].fillna(df['pclass'].mode()[0]).astype(int)
-        df['survived'] = df['survived'].fillna(0).astype(int)
-        df['age'] = df['age'].fillna(df['age'].median())
-        df['fare'] = df['fare'].fillna(df['fare'].median())
-        
-        # 분석용 열
-        df['Death'] = 1 - df['survived']
-        df['Survival'] = df['survived']
-        
-        # 연령대 생성
-        bins = [0, 10, 20, 30, 40, 50, 60, 70, 100]
-        labels = ['0-10', '11-20', '21-30', '31-40', '41-50', '51-60', '61-70', '71+']
-        df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, include_lowest=True)
-        
-        return df
+        else:
+            df = pd.read_excel(file_path)
     except Exception as e:
-        st.error(f"❌ 데이터 처리 중 오류 발생: {e}")
+        st.error(f"❌ 파일을 찾을 수 없습니다: {e}")
         return None
-
-# --- 3. 메인 로직 ---
-def main():
-    df = load_data("titanic.xls")
     
-    if df is not None:
-        st.sidebar.title("🔍 분석 메뉴")
-        menu = st.sidebar.radio("선택", ["데이터 요약", "사망/생존 분석", "통계"])
+    # 필요한 컬럼만 추출
+    df_clean = df[['pclass', 'survived', 'sex', 'age', 'fare']].copy()
+    return df_clean
 
-        if menu == "데이터 요약":
-            st.title("🚢 타이타닉 요약")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("총 승객", f"{len(df)}명")
-            c2.metric("총 사망", f"{df['Death'].sum()}명")
-            c3.metric("총 생존", f"{df['Survival'].sum()}명")
-            st.dataframe(df.head())
+def handle_missing_data(df):
+    df = df.copy()
+    df['pclass'] = df['pclass'].fillna(df['pclass'].mode()[0]).astype(int)
+    df['survived'] = df['survived'].fillna(0).astype(int)
+    df['age'] = df['age'].fillna(df['age'].median())
+    df['fare'] = df['fare'].fillna(df['fare'].median())
+    return df
 
-        elif menu == "사망/생존 분석":
-            target = st.sidebar.selectbox("대상", ["Death", "Survival"])
-            cat = st.sidebar.selectbox("기준", ["age_group", "pclass"])
-            
-            # 여기서 observed=True를 써야 카테고리 에러가 안 남
-            plot_data = df.groupby(cat, observed=True)[target].sum().reset_index()
-            
-            fig, ax = plt.subplots()
-            sns.barplot(data=plot_data, x=cat, y=target, ax=ax)
-            st.pyplot(fig)
+def handle_outliers(df):
+    df = df.copy()
+    df['age'] = np.where((df['age'] < 0) | (df['age'] > 100), np.nan, df['age'])
+    Q1_fare = df['fare'].quantile(0.25)
+    Q3_fare = df['fare'].quantile(0.75)
+    IQR_fare = Q3_fare - Q1_fare
+    df['fare'] = np.where((df['fare'] < (Q1_fare - 1.5 * IQR_fare)) | 
+                          (df['fare'] > (Q3_fare + 1.5 * IQR_fare)), np.nan, df['fare'])
+    return df
 
-        elif menu == "통계":
-            st.subheader("📊 상관관계 (Age, Fare, Survived)")
-            corr = df[['age', 'fare', 'survived']].corr()
-            fig, ax = plt.subplots()
-            sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax)
-            st.pyplot(fig)
+def create_analysis_columns(df):
+    df = df.copy()
+    df['Death'] = 1 - df['survived']
+    df['Survival'] = df['survived']
+    bins = [0, 10, 20, 30, 40, 50, 60, 70, 100]
+    labels = ['0-10', '11-20', '21-30', '31-40', '41-50', '51-60', '61-70', '71+']
+    df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, right=True, include_lowest=True)
+    return df
+
+def normalize_data(df):
+    df = df.copy()
+    scaler = MinMaxScaler()
+    # 결측치가 있으면 스케일러가 오류나므로 dropna 후 처리하거나 fillna 필요
+    subset = df[['age', 'fare']].fillna(df[['age', 'fare']].median())
+    df[['age', 'fare']] = scaler.fit_transform(subset)
+    return df
+
+# --- 3. 시각화 및 분석 함수 (원본 기능 전체 포함) ---
+def generate_summary_tables(df_raw):
+    st.title("🚢 타이타닉 데이터 분석 종합 요약")
+    st.info(f"분석 데이터 파일: {FILE_PATH}")
+    
+    total_people, total_deaths, total_survival = len(df_raw), df_raw['Death'].sum(), df_raw['Survival'].sum()
+    col1, col2, col3 = st.columns(3)
+    col1.metric("총 인원", f"{total_people}명")
+    col2.metric("총 사망자", f"{total_deaths}명", delta="-사망", delta_color="inverse")
+    col3.metric("총 구조자", f"{total_survival}명", delta="+구조")
+
+    st.markdown("---")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("💔 사망자 상세 요약")
+        st.write("**연령대별**")
+        st.dataframe(df_raw.groupby('age_group', observed=False)['Death'].sum(), use_container_width=True)
+        st.write("**선실 등급별**")
+        st.dataframe(df_raw.groupby('pclass')['Death'].sum(), use_container_width=True)
+    with c2:
+        st.subheader("✅ 구조자 상세 요약")
+        st.write("**연령대별**")
+        st.dataframe(df_raw.groupby('age_group', observed=False)['Survival'].sum(), use_container_width=True)
+        st.write("**선실 등급별**")
+        st.dataframe(df_raw.groupby('pclass')['Survival'].sum(), use_container_width=True)
+
+def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select):
+    if category == 'age':
+        plot_data = df_raw.groupby('age_group', observed=False)[target].sum().reset_index()
+        x_col = 'age_group'
+    else:
+        plot_data = df_raw.groupby(category)[target].sum().reset_index()
+        x_col = category
+        plot_data[x_col] = plot_data[x_col].astype(str) + " Class"
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    if plot_type == 'Bar Chart':
+        sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='viridis')
+    else:
+        sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o')
+    
+    ax.set_title(f"{target_name} by {category.capitalize()}")
+    st.pyplot(fig)
+
+    if extreme_select == '가장 높은 지점':
+        top = plot_data.loc[plot_data[target].idxmax()]
+        st.success(f"🥇 최고치: {top[x_col]} ({top[target]}명)")
+    else:
+        bottom = plot_data.loc[plot_data[target].idxmin()]
+        st.error(f"🥉 최저치: {bottom[x_col]} ({bottom[target]}명)")
+
+def plot_correlation(df, corr_plot_type):
+    numeric_df = df[['survived', 'age', 'fare']].dropna()
+    st.subheader(f"🔗 상관관계 분석: {corr_plot_type}")
+    fig, ax = plt.subplots(figsize=(6, 5))
+    if corr_plot_type == 'Heatmap':
+        sns.heatmap(numeric_df.corr(), annot=True, cmap='coolwarm', fmt=".2f", ax=ax)
+    else:
+        sns.scatterplot(data=df, x='age', y='fare', hue='survived', alpha=0.6, ax=ax)
+    st.pyplot(fig)
+
+def plot_boxplot(df):
+    st.subheader("📊 박스 플롯: 나이(Age)와 요금(Fare)")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    sns.boxplot(data=df[['age', 'fare']], ax=ax, palette="Set2")
+    st.pyplot(fig)
+
+def analyze_quantiles(df_raw):
+    st.markdown("---")
+    st.header("📈 통계 상세 분석 (분위수)")
+    for col in ['age', 'fare']:
+        q1, median, q3 = df_raw[col].quantile(0.25), df_raw[col].median(), df_raw[col].quantile(0.75)
+        st.write(f"**{col.capitalize()}** - Q1: {q1:.1f}, Median: {median:.1f}, Q3: {q3:.1f}")
+
+# --- 4. 메인 앱 실행 ---
+def main():
+    data = load_data(FILE_PATH)
+    if data is None: return
+
+    data_raw = handle_missing_data(data)
+    data_raw = create_analysis_columns(data_raw)
+    data_norm = handle_outliers(data_raw)
+    data_norm = normalize_data(data_norm)
+
+    st.sidebar.title("🔍 Dashboard Menu")
+    menu = st.sidebar.radio("메뉴를 선택하세요", ['종합 요약 (표)', '사망/구조자 분석 (그래프)', '상관관계 분석', '박스 플롯'])
+
+    if menu == '종합 요약 (표)':
+        generate_summary_tables(data_raw)
+    elif menu == '사망/구조자 분석 (그래프)':
+        theme = st.sidebar.selectbox("분석 대상", ['사망자 수', '구조자 수'])
+        target, cat = ('Death' if theme == '사망자 수' else 'Survival'), st.sidebar.selectbox("분류 기준", ['age', 'pclass'])
+        style, extreme = st.sidebar.radio("그래프 형태", ['Bar Chart', 'Line Chart']), st.sidebar.radio("강조 지점", ['가장 높은 지점', '가장 낮은 지점'])
+        plot_counts(data_raw, cat, target, theme, style, extreme)
+    elif menu == '상관관계 분석':
+        style = st.sidebar.radio("시각화 방식", ['Heatmap', 'Scatter Plot'])
+        plot_correlation(data_norm, style)
+    elif menu == '박스 플롯':
+        plot_boxplot(data_norm)
+        analyze_quantiles(data_raw)
 
 if __name__ == "__main__":
     main()
