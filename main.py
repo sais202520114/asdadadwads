@@ -5,25 +5,30 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 
-# 파일 경로
+# ===============================
+# 기본 설정
+# ===============================
 FILE_PATH = "titanic.xls"
 
-# Matplotlib 설정
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False
 
-# Streamlit 페이지 설정
 st.set_page_config(
-    page_title="타이타닉 데이터 분석 대시보드",
+    page_title="타이타닉 데이터 분석",
     layout="wide"
 )
 
-# ---------------- 데이터 로드 ----------------
+# ===============================
+# 데이터 로드
+# ===============================
 @st.cache_data
 def load_data(path):
-    return pd.read_excel(path)[['pclass', 'survived', 'sex', 'age', 'fare']]
+    df = pd.read_excel(path)
+    return df[['pclass', 'survived', 'sex', 'age', 'fare']]
 
-# ---------------- 결측치 처리 ----------------
+# ===============================
+# 결측치 처리
+# ===============================
 def handle_missing_data(df):
     df['pclass'] = df['pclass'].fillna(df['pclass'].mode()[0]).astype(int)
     df['survived'] = df['survived'].fillna(0).astype(int)
@@ -31,21 +36,26 @@ def handle_missing_data(df):
     df['fare'] = df['fare'].fillna(df['fare'].median())
     return df
 
-# ---------------- 이상치 처리 ----------------
+# ===============================
+# 이상치 처리
+# ===============================
 def handle_outliers(df):
-    df['age'] = np.where((df['age'] < 0) | (df['age'] > 100), np.nan, df['age'])
+    # age: 0~100
+    df.loc[(df['age'] < 0) | (df['age'] > 100), 'age'] = np.nan
 
+    # fare: IQR
     Q1 = df['fare'].quantile(0.25)
     Q3 = df['fare'].quantile(0.75)
     IQR = Q3 - Q1
-
     lower = Q1 - 1.5 * IQR
     upper = Q3 + 1.5 * IQR
-    df['fare'] = np.where((df['fare'] < lower) | (df['fare'] > upper), np.nan, df['fare'])
 
+    df.loc[(df['fare'] < lower) | (df['fare'] > upper), 'fare'] = np.nan
     return df
 
-# ---------------- 분석 컬럼 ----------------
+# ===============================
+# 분석용 컬럼
+# ===============================
 def create_analysis_columns(df):
     df['Death'] = 1 - df['survived']
     df['Survival'] = df['survived']
@@ -55,48 +65,88 @@ def create_analysis_columns(df):
     df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, include_lowest=True)
     return df
 
-# ---------------- 🔥 정규화 파트 ----------------
+# ===============================
+# 🔥 정규화 (중요)
+# ===============================
 def normalize_data(df):
-    """
-    Min-Max Scaling
-    age, fare 값을 0~1 범위로 정규화
-    """
     scaler = MinMaxScaler()
-    df[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
+
+    # 정규화는 숫자 컬럼만
+    df[['age_norm', 'fare_norm']] = scaler.fit_transform(
+        df[['age', 'fare']]
+    )
     return df
 
-# ---------------- 박스플롯 ----------------
+# ===============================
+# 산점도 (정규화 기준)
+# ===============================
+def plot_scatter(df):
+    st.subheader("📊 산점도: Age vs Fare (Normalized)")
+
+    fig, ax = plt.subplots(figsize=(5,4))
+
+    sns.scatterplot(
+        data=df,
+        x='age_norm',
+        y='fare_norm',
+        hue='pclass',
+        palette='Set1',
+        ax=ax
+    )
+
+    ax.set_xlabel("Age (Normalized)")
+    ax.set_ylabel("Fare (Normalized)")
+    ax.set_title("Normalized Scatter Plot by Passenger Class")
+
+    st.pyplot(fig)
+
+# ===============================
+# 박스플롯
+# ===============================
 def plot_boxplot(df):
-    st.subheader("📦 Age & Fare Boxplot (Normalized)")
+    st.subheader("📦 박스 플롯 (Normalized)")
+
     fig, ax = plt.subplots(figsize=(4,3))
-    sns.boxplot(data=df[['age','fare']], palette="Set2", ax=ax)
+    sns.boxplot(
+        data=df[['age_norm', 'fare_norm']],
+        palette="Set2",
+        ax=ax
+    )
     ax.set_ylabel("Normalized Value")
     st.pyplot(fig)
 
-# ---------------- 메인 ----------------
+# ===============================
+# 메인
+# ===============================
 def main():
-    data = load_data(FILE_PATH)
+    df = load_data(FILE_PATH)
 
-    # 원본 요약용
-    raw = handle_missing_data(data.copy())
-    raw = create_analysis_columns(raw)
+    # 전처리
+    df = handle_missing_data(df)
+    df = handle_outliers(df)
+    df = handle_missing_data(df)
+    df = create_analysis_columns(df)
 
-    # 분석용 데이터
-    data = handle_missing_data(data)
-    data = handle_outliers(data)
-    data = handle_missing_data(data)
-    data = create_analysis_columns(data)
-    data = normalize_data(data)
+    # 🔥 정규화
+    df = normalize_data(df)
 
     st.sidebar.title("메뉴")
-    menu = st.sidebar.radio("선택", ["데이터 미리보기", "박스 플롯"])
+    menu = st.sidebar.radio(
+        "선택",
+        ["데이터 확인", "산점도", "박스 플롯"]
+    )
 
-    if menu == "데이터 미리보기":
-        st.subheader("📄 정규화된 데이터")
-        st.dataframe(data.head())
+    if menu == "데이터 확인":
+        st.subheader("📄 정규화 포함 데이터")
+        st.dataframe(
+            df[['pclass','survived','age','fare','age_norm','fare_norm']].head()
+        )
+
+    elif menu == "산점도":
+        plot_scatter(df)
 
     elif menu == "박스 플롯":
-        plot_boxplot(data)
+        plot_boxplot(df)
 
 if __name__ == "__main__":
     main()
