@@ -16,8 +16,7 @@ st.set_page_config(page_title="Titanic Analysis Full Dashboard", layout="wide")
 @st.cache_data
 def load_full_data():
     try:
-        # 파일 확장자 xlsx로 변환 후 openpyxl 엔진 사용 권장
-        df = pd.read_excel("titanic.xlsx", engine='openpyxl')  
+        df = pd.read_excel("titanic.xlsx", engine='openpyxl')
         
         cols = ['pclass', 'survived', 'sex', 'age', 'fare']
         df = df[cols].copy()
@@ -33,8 +32,6 @@ def load_full_data():
         bins = [0, 10, 20, 30, 40, 50, 60, 70, 100]
         labels = ['0-10', '11-20', '21-30', '31-40', '41-50', '51-60', '61-70', '71+']
         df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, include_lowest=True)
-        
-        # age_group을 명확한 순서형 범주형으로 설정
         df['age_group'] = pd.Categorical(df['age_group'], categories=labels, ordered=True)
 
         return df
@@ -91,7 +88,6 @@ def main():
 
         plot_data = df.groupby(category)[target_col].sum().reset_index()
 
-        # 범주형 변수 순서 보장 (age_group)
         if category == 'age_group':
             labels = ['0-10', '11-20', '21-30', '31-40', '41-50', '51-60', '61-70', '71+']
             plot_data[category] = pd.Categorical(plot_data[category], categories=labels, ordered=True)
@@ -102,8 +98,16 @@ def main():
             ax.set_title(f"{category}별 {target_label}", fontsize=15)
 
         elif chart_type == 'Line':
-            sns.lineplot(data=plot_data, x=category, y=target_col, ax=ax, marker='o', color='teal')
-            ax.set_title(f"{category}에 따른 {target_label} 변화", fontsize=15)
+            if category == 'age_group':
+                x_vals = range(len(plot_data))
+                y_vals = plot_data[target_col].values
+                ax.plot(x_vals, y_vals, marker='o', color='teal')
+                ax.set_xticks(x_vals)
+                ax.set_xticklabels(plot_data[category].astype(str))
+                ax.set_title(f"{category}에 따른 {target_label} 변화", fontsize=15)
+            else:
+                sns.lineplot(data=plot_data, x=category, y=target_col, ax=ax, marker='o', color='teal')
+                ax.set_title(f"{category}에 따른 {target_label} 변화", fontsize=15)
 
         elif chart_type == 'Histogram':
             if category in ['age_group', 'sex']:
