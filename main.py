@@ -27,7 +27,7 @@ def load_data(file_path):
         if os.path.exists(file_path):
             df = pd.read_excel(file_path)
         else:
-            # 파일이 없을 경우 배포 환경 에러 방지를 위한 백업 (seaborn 데이터)
+            # 파일이 없을 경우 배포 환경 에러 방지를 위한 백업 로직
             df = sns.load_dataset("titanic")
     except Exception as e:
         st.error(f"오류: 파일 로드 실패 ({e})")
@@ -60,10 +60,9 @@ def create_analysis_columns(df):
     df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, right=True, include_lowest=True)
     return df
 
-# --- [핵심] 정규화 함수 ---
 def normalize_data(df):
     scaler = MinMaxScaler()
-    # MinMaxScaler는 NaN이 있으면 동작하지 않으므로 결측치를 최종 확인 후 스케일링
+    # MinMaxScaler는 NaN이 있으면 에러가 나므로 결측치를 최종 확인 후 스케일링
     df[['age', 'fare']] = df[['age', 'fare']].fillna(df[['age', 'fare']].median())
     df[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
     return df
@@ -113,7 +112,7 @@ def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select
         sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o')
     st.pyplot(fig, use_container_width=False)
 
-# --- [핵심] 상관관계 및 산점도 ---
+# --- 상관관계 및 산점도 ---
 def calculate_correlation(df):
     corr_matrix = df.corr()
     np.fill_diagonal(corr_matrix.values, np.nan)
@@ -132,7 +131,7 @@ def plot_correlation(df, corr_type, plot_type):
         sns.heatmap(corr_matrix, annot=True, fmt=".2f", cmap='YlGnBu', ax=ax)
         st.pyplot(fig, use_container_width=False)
     elif plot_type == 'Scatter Plot':
-        # 사용자 요청 산점도 로직
+        # 산점도: pclass별 연령과 요금 (Normalized)
         fig, ax = plt.subplots(figsize=(5, 3), tight_layout=True)
         df_plot = df.copy()
         df_plot['pclass_str'] = df_plot['pclass'].astype(str)
@@ -149,21 +148,21 @@ def analyze_quantiles_and_outliers(df_raw):
         q1, q2, q3 = df_raw[var].quantile([0.25, 0.5, 0.75])
         st.write(f"**{var.capitalize()}** - Q1: {q1:.2f}, Median: {q2:.2f}, Q3: {q3:.2f}")
 
-# --- [메인 실행부] 사용자 코드 순서 그대로 유지 ---
+# --- 메인 실행부 ---
 def main():
     data = load_data(FILE_PATH)
     if data is None: return
     
-    # 원본 통계용 데이터 전처리
+    # 1. 원본 기반 통계 데이터
     data_raw = handle_missing_data(data.copy())
     data_raw = create_analysis_columns(data_raw)
     
-    # 시각화 및 정규화용 데이터 전처리 (제시해주신 순서)
+    # 2. 정규화 및 이상치 처리 기반 시각화 데이터
     data_viz = handle_missing_data(data.copy())
     data_viz = handle_outliers(data_viz)
-    data_viz = handle_missing_data(data_viz) # 이상치 비운 후 재결합
+    data_viz = handle_missing_data(data_viz)
     data_viz = create_analysis_columns(data_viz)
-    data_viz = normalize_data(data_viz)      # 정규화 적용
+    data_viz = normalize_data(data_viz)
     
     st.sidebar.title("메뉴 선택")
     graph_type = st.sidebar.radio("📊 분석 유형", ('종합 요약 (표)', '사망/구조자 수 분석 (그래프)', '상관관계 분석 (그래프)', '박스 플롯'))
