@@ -4,9 +4,9 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
-import io
 
-# --- 1. 환경 설정 (차트 내 영어 사용으로 폰트 오류 방지) ---
+# --- 1. 기본 환경 설정 ---
+# 차트 내 한글 깨짐 방지를 위해 기본 폰트를 sans-serif로 설정 (차트 내용은 영문 표기)
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False
 
@@ -16,137 +16,150 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# 데이터 파일 경로 (파일이 같은 폴더에 있어야 합니다)
 FILE_PATH = "titanic.xls"
 
-# --- 2. 데이터 처리 함수 (원본 기능 100% 복구) ---
+# --- 2. 데이터 로드 및 전처리 함수 ---
 @st.cache_data
 def load_and_preprocess(file_path):
     try:
-        # 엔진 우선순위 설정하여 로드 오류 방지
+        # 다양한 엔진 시도 (xlrd 또는 openpyxl)
         df = pd.read_excel(file_path, engine='xlrd')
-    except:
+    except Exception:
         try:
             df = pd.read_excel(file_path)
         except Exception as e:
-            st.error(f"❌ File Load Error: {e}")
+            st.error(f"데이터 파일을 불러오지 못했습니다: {e}")
             return None
     
-    # 필요한 컬럼만 추출
-    df = df[['pclass', 'survived', 'sex', 'age', 'fare']].copy()
+    # 분석에 필요한 핵심 컬럼 선택
+    cols = ['pclass', 'survived', 'sex', 'age', 'fare']
+    df = df[cols].copy()
     
-    # 결측치 처리 (원본 로직 유지)
+    # 결측치 처리 (최빈값/중앙값 활용)
     df['pclass'] = df['pclass'].fillna(df['pclass'].mode()[0]).astype(int)
     df['survived'] = df['survived'].fillna(0).astype(int)
     df['age'] = df['age'].fillna(df['age'].median())
     df['fare'] = df['fare'].fillna(df['fare'].median())
     
-    # 분석용 파생 컬럼 생성
+    # 분석용 파생 변수 생성
     df['Death'] = 1 - df['survived']
     df['Survival'] = df['survived']
     
-    # 연령대 그룹 생성 (원본 bins 유지)
+    # 연령대 그룹화 (0세부터 70세 이상까지)
     bins = [0, 10, 20, 30, 40, 50, 60, 70, 100]
     labels = ['0-10', '11-20', '21-30', '31-40', '41-50', '51-60', '61-70', '71+']
     df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, include_lowest=True)
     
     return df
 
-# --- 3. 메인 앱 로직 ---
+# --- 3. 메인 애플리케이션 ---
 def main():
     df = load_and_preprocess(FILE_PATH)
-    if df is None: return
+    
+    if df is not None:
+        # 데이터 정규화 (Min-Max Scaling)
+        scaler = MinMaxScaler()
+        df_norm = df.copy()
+        df_norm[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
 
-    # 데이터 정규화 처리 (이상치 무시하고 스케일링 적용)
-    scaler = MinMaxScaler()
-    df_norm = df.copy()
-    df_norm[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
+        # 사이드바 메뉴
+        st.sidebar.title("🚢 Titanic Menu")
+        menu = st.sidebar.selectbox("보고 싶은 분석을 선택하세요", ['데이터 종합 요약', '사망/구조 분석 시각화', '상관관계 및 통계'])
 
-    st.sidebar.title("🔍 분석 메뉴")
-    menu = st.sidebar.radio("항목 선택", ['종합 요약', '분석 그래프', '상관관계 및 통계'])
-
-    if menu == '종합 요약':
-        st.title("🚢 타이타닉 데이터 종합 요약")
-        # 메트릭 표시
-        m1, m2, m3 = st.columns(3)
-        m1.metric("총 인원", f"{len(df)}명")
-        m2.metric("총 사망자", f"{df['Death'].sum()}명", delta_color="inverse")
-        m3.metric("총 구조자", f"{df['Survival'].sum()}명")
-        
-        st.markdown("---")
-        # 요약 데이터프레임 출력 (원본 기능)
-        col_left, col_right = st.columns(2)
-        with col_left:
-            st.subheader("💔 사망자 상세 통계")
-            st.write("**연령대별 사망자**")
-            st.dataframe(df.groupby('age_group', observed=False)['Death'].sum(), use_container_width=True)
-            st.write("**객실 등급별 사망자**")
-            st.dataframe(df.groupby('pclass')['Death'].sum(), use_container_width=True)
-        with col_right:
-            st.subheader("✅ 구조자 상세 통계")
-            st.write("**연령대별 구조자**")
-            st.dataframe(df.groupby('age_group', observed=False)['Survival'].sum(), use_container_width=True)
-            st.write("**객실 등급별 구조자**")
-            st.dataframe(df.groupby('pclass')['Survival'].sum(), use_container_width=True)
-
-    elif menu == '분석 그래프':
-        st.title("📊 사망/구조자 시각화")
-        target_choice = st.sidebar.selectbox("분석 대상", ['사망자 수', '구조자 수'])
-        target = 'Death' if target_choice == '사망자 수' else 'Survival'
-        category = st.sidebar.selectbox("분류 기준", ['age_group', 'pclass'])
-        plot_type = st.sidebar.radio("그래프 형태", ['Bar Chart', 'Line Chart'])
-        extreme_select = st.sidebar.radio("강조 지점", ['최고치', '최저치'])
-        
-        plot_data = df.groupby(category, observed=False)[target].sum().reset_index()
-        
-        # 그래프 크기 적당히 조절 (화면 60% 사용)
-        c_plot, _ = st.columns([1.5, 1])
-        with c_plot:
-            fig, ax = plt.subplots(figsize=(7, 4))
-            if plot_type == 'Bar Chart':
-                sns.barplot(data=plot_data, x=category, y=target, ax=ax, palette='viridis')
-            else:
-                sns.lineplot(data=plot_data, x=category, y=target, ax=ax, marker='o')
+        # --- 메뉴 1: 종합 요약 ---
+        if menu == '데이터 종합 요약':
+            st.title("📊 타이타닉 데이터 종합 요약")
             
-            # 차트 내부 영어 설정
-            ax.set_title(f"{target} Count by {category.capitalize()}", fontsize=12)
-            ax.set_xlabel(category.upper())
-            ax.set_ylabel("COUNT")
-            st.pyplot(fig)
-
-        # 강조 지점 표시 기능 (원본 복구)
-        if extreme_select == '최고치':
-            top = plot_data.loc[plot_data[target].idxmax()]
-            st.success(f"🥇 최고 지점: {top[category]} ({top[target]}명)")
-        else:
-            low = plot_data.loc[plot_data[target].idxmin()]
-            st.error(f"🥉 최저 지점: {low[category]} ({low[target]}명)")
-
-    elif menu == '상관관계 및 통계':
-        st.title("📈 상관관계 및 분위수 분석")
-        col_1, col_2 = st.columns([1.2, 1])
-        
-        with col_1:
-            st.subheader("상관관계 히트맵 (Heatmap)")
-            fig1, ax1 = plt.subplots(figsize=(6, 5))
-            sns.heatmap(df[['survived', 'age', 'fare']].corr(), annot=True, cmap='coolwarm', ax=ax1)
-            ax1.set_title("Correlation Matrix", fontsize=12)
-            st.pyplot(fig1)
-            
-        with col_2:
-            st.subheader("통계 상세 분석")
-            # 분위수(Quantile) 분석 기능 (원본 복구)
-            for col_name in ['age', 'fare']:
-                q1 = df[col_name].quantile(0.25)
-                median = df[col_name].median()
-                q3 = df[col_name].quantile(0.75)
-                st.info(f"**{col_name.upper()}**\n\nQ1: {q1:.1f} | Median: {median:.1f} | Q3: {q3:.1f}")
+            # 상단 메트릭 카드
+            m1, m2, m3 = st.columns(3)
+            m1.metric("총 승객 수", f"{len(df)} 명")
+            m2.metric("총 사망자 수", f"{df['Death'].sum()} 명", delta_color="inverse")
+            m3.metric("총 구조자 수", f"{df['Survival'].sum()} 명")
             
             st.markdown("---")
-            st.write("**정규화 데이터 박스 플롯 (Boxplot)**")
-            fig2, ax2 = plt.subplots(figsize=(5, 4))
-            sns.boxplot(data=df_norm[['age', 'fare']], ax=ax2, palette="Set3")
-            ax2.set_title("Normalized Data Distribution", fontsize=10)
-            st.pyplot(fig2)
+            
+            # 상세 요약 표
+            col_left, col_right = st.columns(2)
+            with col_left:
+                st.subheader("💔 사망자 상세 통계")
+                st.write("**연령대별 사망자**")
+                st.table(df.groupby('age_group', observed=False)['Death'].sum())
+                st.write("**객실 등급별 사망자**")
+                st.table(df.groupby('pclass')['Death'].sum())
+                
+            with col_right:
+                st.subheader("✅ 구조자 상세 통계")
+                st.write("**연령대별 구조자**")
+                st.table(df.groupby('age_group', observed=False)['Survival'].sum())
+                st.write("**객실 등급별 구조자**")
+                st.table(df.groupby('pclass')['Survival'].sum())
+
+        # --- 메뉴 2: 분석 그래프 ---
+        elif menu == '분석 그래프':
+            st.title("📈 시각화 차트")
+            
+            # 선택 옵션
+            target_label = st.sidebar.radio("데이터 선택", ['사망자 수', '구조자 수'])
+            target_col = 'Death' if target_label == '사망자 수' else 'Survival'
+            
+            category = st.sidebar.selectbox("분류 기준", ['age_group', 'pclass'])
+            chart_type = st.sidebar.radio("그래프 형태", ['Bar Chart', 'Line Chart'])
+            
+            # 데이터 그룹화
+            plot_data = df.groupby(category, observed=False)[target_col].sum().reset_index()
+            
+            # 메인 그래프 출력
+            col_chart, col_empty = st.columns([2, 1])
+            with col_chart:
+                fig, ax = plt.subplots(figsize=(8, 5))
+                if chart_type == 'Bar Chart':
+                    sns.barplot(data=plot_data, x=category, y=target_col, ax=ax, palette='magma')
+                else:
+                    sns.lineplot(data=plot_data, x=category, y=target_col, ax=ax, marker='o', color='red')
+                
+                # 차트 내부는 영어로 설정 (깨짐 방지)
+                ax.set_title(f"{target_col} Counts by {category.upper()}", fontsize=14)
+                ax.set_xlabel(category.upper())
+                ax.set_ylabel("Count")
+                st.pyplot(fig)
+
+            # 강조 포인트 출력
+            st.markdown("---")
+            extreme = st.radio("특이 지점 확인", ['최고치 데이터', '최저치 데이터'])
+            if extreme == '최고치 데이터':
+                top_val = plot_data.loc[plot_data[target_col].idxmax()]
+                st.success(f"💡 분석 결과: **{top_val[category]}** 그룹에서 {target_label}가 **{top_val[target_col]}명**으로 가장 많습니다.")
+            else:
+                low_val = plot_data.loc[plot_data[target_col].idxmin()]
+                st.warning(f"💡 분석 결과: **{low_val[category]}** 그룹에서 {target_label}가 **{low_val[target_col]}명**으로 가장 적습니다.")
+
+        # --- 메뉴 3: 상관관계 및 통계 ---
+        elif menu == '상관관계 및 통계':
+            st.title("🔍 심화 통계 분석")
+            
+            c1, c2 = st.columns([1.2, 1])
+            with c1:
+                st.subheader("1. 변수 간 상관관계 (Heatmap)")
+                fig_corr, ax_corr = plt.subplots()
+                sns.heatmap(df[['survived', 'age', 'fare']].corr(), annot=True, cmap='RdBu', ax=ax_corr)
+                ax_corr.set_title("Correlation Heatmap")
+                st.pyplot(fig_corr)
+                
+            with c2:
+                st.subheader("2. 주요 변수 분위수 분석")
+                for item in ['age', 'fare']:
+                    q1 = df[item].quantile(0.25)
+                    q2 = df[item].median()
+                    q3 = df[item].quantile(0.75)
+                    st.info(f"📍 **{item.upper()}** 통계\n- 25%(Q1): {q1:.2f}\n- 50%(중앙값): {med:.2f}\n- 75%(Q3): {q3:.1f}")
+            
+            st.markdown("---")
+            st.subheader("3. 정규화 데이터 분포 (Boxplot)")
+            fig_box, ax_box = plt.subplots(figsize=(10, 4))
+            sns.boxplot(data=df_norm[['age', 'fare']], ax=ax_box, orient='h', palette='Pastel1')
+            ax_box.set_title("Normalized Distribution (Age & Fare)")
+            st.pyplot(fig_box)
 
 if __name__ == "__main__":
     main()
