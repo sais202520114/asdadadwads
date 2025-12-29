@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 
 # --- 1. 기본 환경 설정 ---
-# 차트 내 한글 깨짐 방지를 위해 기본 폰트를 sans-serif로 설정 (차트 내용은 영문 표기)
+# 차트 내 한글 깨짐 방지를 위해 차트 텍스트는 영문으로 작성
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False
 
@@ -23,10 +23,11 @@ FILE_PATH = "titanic.xls"
 @st.cache_data
 def load_and_preprocess(file_path):
     try:
-        # 다양한 엔진 시도 (xlrd 또는 openpyxl)
+        # xlrd 엔진을 사용하여 xls 파일 로드
         df = pd.read_excel(file_path, engine='xlrd')
     except Exception:
         try:
+            # 엔진 없이 재시도
             df = pd.read_excel(file_path)
         except Exception as e:
             st.error(f"데이터 파일을 불러오지 못했습니다: {e}")
@@ -42,7 +43,7 @@ def load_and_preprocess(file_path):
     df['age'] = df['age'].fillna(df['age'].median())
     df['fare'] = df['fare'].fillna(df['fare'].median())
     
-    # 분석용 파생 변수 생성
+    # 분석용 파생 변수 생성 (사망/구조 여부)
     df['Death'] = 1 - df['survived']
     df['Survival'] = df['survived']
     
@@ -58,28 +59,28 @@ def main():
     df = load_and_preprocess(FILE_PATH)
     
     if df is not None:
-        # 데이터 정규화 (Min-Max Scaling)
+        # 데이터 정규화 (Min-Max Scaling) - 상관관계 분석용
         scaler = MinMaxScaler()
         df_norm = df.copy()
         df_norm[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
 
         # 사이드바 메뉴
-        st.sidebar.title("🚢 Titanic Menu")
-        menu = st.sidebar.selectbox("보고 싶은 분석을 선택하세요", ['데이터 종합 요약', '사망/구조 분석 시각화', '상관관계 및 통계'])
+        st.sidebar.title("🚢 Titanic Dashboard")
+        menu = st.sidebar.selectbox("메뉴 선택", ['데이터 요약', '시각화 분석', '심화 통계'])
 
-        # --- 메뉴 1: 종합 요약 ---
-        if menu == '데이터 종합 요약':
+        # --- 메뉴 1: 데이터 요약 ---
+        if menu == '데이터 요약':
             st.title("📊 타이타닉 데이터 종합 요약")
             
-            # 상단 메트릭 카드
+            # 상단 지표
             m1, m2, m3 = st.columns(3)
             m1.metric("총 승객 수", f"{len(df)} 명")
-            m2.metric("총 사망자 수", f"{df['Death'].sum()} 명", delta_color="inverse")
+            m2.metric("총 사망자 수", f"{df['Death'].sum()} 명")
             m3.metric("총 구조자 수", f"{df['Survival'].sum()} 명")
             
             st.markdown("---")
             
-            # 상세 요약 표
+            # 상세 데이터 테이블
             col_left, col_right = st.columns(2)
             with col_left:
                 st.subheader("💔 사망자 상세 통계")
@@ -95,11 +96,11 @@ def main():
                 st.write("**객실 등급별 구조자**")
                 st.table(df.groupby('pclass')['Survival'].sum())
 
-        # --- 메뉴 2: 분석 그래프 ---
-        elif menu == '분석 그래프':
+        # --- 메뉴 2: 시각화 분석 ---
+        elif menu == '시각화 분석':
             st.title("📈 시각화 차트")
             
-            # 선택 옵션
+            # 사용자 선택 옵션
             target_label = st.sidebar.radio("데이터 선택", ['사망자 수', '구조자 수'])
             target_col = 'Death' if target_label == '사망자 수' else 'Survival'
             
@@ -109,7 +110,7 @@ def main():
             # 데이터 그룹화
             plot_data = df.groupby(category, observed=False)[target_col].sum().reset_index()
             
-            # 메인 그래프 출력
+            # 메인 그래프 출력 영역
             col_chart, col_empty = st.columns([2, 1])
             with col_chart:
                 fig, ax = plt.subplots(figsize=(8, 5))
@@ -118,13 +119,13 @@ def main():
                 else:
                     sns.lineplot(data=plot_data, x=category, y=target_col, ax=ax, marker='o', color='red')
                 
-                # 차트 내부는 영어로 설정 (깨짐 방지)
+                # 차트 내부는 영어로 설정 (한글 깨짐 방지)
                 ax.set_title(f"{target_col} Counts by {category.upper()}", fontsize=14)
                 ax.set_xlabel(category.upper())
                 ax.set_ylabel("Count")
                 st.pyplot(fig)
 
-            # 강조 포인트 출력
+            # 분석 결과 텍스트 강조
             st.markdown("---")
             extreme = st.radio("특이 지점 확인", ['최고치 데이터', '최저치 데이터'])
             if extreme == '최고치 데이터':
@@ -134,9 +135,9 @@ def main():
                 low_val = plot_data.loc[plot_data[target_col].idxmin()]
                 st.warning(f"💡 분석 결과: **{low_val[category]}** 그룹에서 {target_label}가 **{low_val[target_col]}명**으로 가장 적습니다.")
 
-        # --- 메뉴 3: 상관관계 및 통계 ---
-        elif menu == '상관관계 및 통계':
-            st.title("🔍 심화 통계 분석")
+        # --- 메뉴 3: 심화 통계 ---
+        elif menu == '심화 통계':
+            st.title("🔍 상관관계 및 수치 분석")
             
             c1, c2 = st.columns([1.2, 1])
             with c1:
@@ -152,7 +153,7 @@ def main():
                     q1 = df[item].quantile(0.25)
                     q2 = df[item].median()
                     q3 = df[item].quantile(0.75)
-                    st.info(f"📍 **{item.upper()}** 통계\n- 25%(Q1): {q1:.2f}\n- 50%(중앙값): {med:.2f}\n- 75%(Q3): {q3:.1f}")
+                    st.info(f"📍 **{item.upper()}** 통계\n- 25%(Q1): {q1:.2f}\n- 50%(중앙값): {q2:.2f}\n- 75%(Q3): {q3:.1f}")
             
             st.markdown("---")
             st.subheader("3. 정규화 데이터 분포 (Boxplot)")
