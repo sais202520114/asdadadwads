@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
@@ -17,9 +16,12 @@ st.set_page_config(page_title="Titanic Analysis Full Dashboard", layout="wide")
 @st.cache_data
 def load_full_data():
     try:
-        df = pd.read_excel("titanic.xls")  # xlrd 문제 발생 시 xlsx 변환 필요
+        # 파일 확장자 xlsx로 변환 후 openpyxl 엔진 사용 권장
+        df = pd.read_excel("titanic.xlsx", engine='openpyxl')  
+        
         cols = ['pclass', 'survived', 'sex', 'age', 'fare']
         df = df[cols].copy()
+
         df['pclass'] = df['pclass'].fillna(df['pclass'].mode()[0]).astype(int)
         df['survived'] = df['survived'].fillna(0).astype(int)
         df['age'] = df['age'].fillna(df['age'].median())
@@ -32,27 +34,27 @@ def load_full_data():
         labels = ['0-10', '11-20', '21-30', '31-40', '41-50', '51-60', '61-70', '71+']
         df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels, include_lowest=True)
         
+        # age_group을 명확한 순서형 범주형으로 설정
+        df['age_group'] = pd.Categorical(df['age_group'], categories=labels, ordered=True)
+
         return df
     except Exception as e:
         st.error(f"데이터 로드 에러: {e}")
         return None
 
-# 3. 메인 대시보드
+# 3. 메인 대시보드 실행
 def main():
     df = load_full_data()
     if df is None:
         return
 
-    # 정규화
     scaler = MinMaxScaler()
     df_norm = df.copy()
     df_norm[['age', 'fare']] = scaler.fit_transform(df[['age', 'fare']])
 
-    # 사이드바 메뉴
     st.sidebar.title("🚢 타이타닉 분석")
     menu = st.sidebar.radio("메뉴 선택", ['종합 대시보드', '사망/구조 분석 시각화', '심화 통계 분석'])
 
-    # --- 종합 대시보드 ---
     if menu == '종합 대시보드':
         st.title("📊 타이타닉 데이터 종합 현황")
         m1, m2, m3, m4 = st.columns(4)
@@ -61,7 +63,7 @@ def main():
         m3.metric("총 구조자", f"{df['Survival'].sum()}명")
         survival_rate = (df['Survival'].sum() / len(df)) * 100
         m4.metric("평균 생존율", f"{survival_rate:.1f}%")
-        
+
         st.divider()
         col_left, col_right = st.columns(2)
         with col_left:
@@ -77,9 +79,9 @@ def main():
             st.dataframe(surv_age, use_container_width=True)
             st.dataframe(surv_pclass, use_container_width=True)
 
-    # --- 시각화 메뉴 ---
     elif menu == '사망/구조 분석 시각화':
         st.title("📈 시각화 차트 분석")
+
         target_label = st.sidebar.radio("데이터 종류", ['사망자 수', '구조자 수'])
         target_col = 'Death' if target_label == '사망자 수' else 'Survival'
         category = st.sidebar.selectbox("분류 기준 (X축)", ['age_group', 'pclass', 'sex'])
@@ -87,27 +89,35 @@ def main():
 
         fig, ax = plt.subplots(figsize=(10, 5))
 
+        plot_data = df.groupby(category)[target_col].sum().reset_index()
+
+        # 범주형 변수 순서 보장 (age_group)
+        if category == 'age_group':
+            labels = ['0-10', '11-20', '21-30', '31-40', '41-50', '51-60', '61-70', '71+']
+            plot_data[category] = pd.Categorical(plot_data[category], categories=labels, ordered=True)
+            plot_data = plot_data.sort_values(category)
+
         if chart_type == 'Bar':
-            plot_data = df.groupby(category)[target_col].sum().reset_index()
             sns.barplot(data=plot_data, x=category, y=target_col, ax=ax, palette='viridis')
             ax.set_title(f"{category}별 {target_label}", fontsize=15)
 
         elif chart_type == 'Line':
-            plot_data = df.groupby(category)[target_col].sum().reset_index()
-            sns.lineplot(data=plot_data, x=category, y=target_col, ax=ax, marker='s', markersize=8, color='crimson', linewidth=2)
+            sns.lineplot(data=plot_data, x=category, y=target_col, ax=ax, marker='o', color='teal')
             ax.set_title(f"{category}에 따른 {target_label} 변화", fontsize=15)
 
         elif chart_type == 'Histogram':
-            x_col = 'age' if category == 'age_group' else category
-            sns.histplot(df, x=x_col, hue='survived', multiple="stack", kde=True, palette='coolwarm', ax=ax)
+            if category in ['age_group', 'sex']:
+                sns.countplot(data=df, x=category, hue='survived', palette='coolwarm', ax=ax)
+            else:
+                sns.histplot(data=df, x=category, hue='survived', multiple="stack", kde=True, palette='coolwarm', ax=ax)
             ax.set_title(f"생존 여부에 따른 {category} 분포", fontsize=15)
 
         plt.tight_layout()
         st.pyplot(fig)
 
-    # --- 심화 통계 분석 ---
     elif menu == '심화 통계 분석':
         st.title("🔍 수치 데이터 심화 분석")
+
         st.subheader("1. 변수 간 상관관계 (Heatmap)")
         corr_data = df[['survived', 'age', 'fare', 'pclass']].corr()
         fig_corr, ax_corr = plt.subplots(figsize=(8, 6))
