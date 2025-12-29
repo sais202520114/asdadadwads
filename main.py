@@ -4,7 +4,6 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
-import os
 
 # --- 1. 환경 설정 ---
 plt.rcParams['font.family'] = 'sans-serif'
@@ -18,17 +17,16 @@ st.set_page_config(
 
 FILE_PATH = "titanic.xls"
 
-# --- 2. 데이터 처리 함수 (오타 수정 및 로직 복구) ---
+# --- 2. 데이터 처리 함수 ---
 @st.cache_data
 def load_data(file_path):
     try:
-        # 엔진 우선순위 부여하여 로드 오류 방지
         df = pd.read_excel(file_path, engine='xlrd')
     except Exception:
         try:
             df = pd.read_excel(file_path)
         except Exception as e:
-            st.error(f"❌ 파일을 로드할 수 없습니다: {e}")
+            st.error(f"❌ 파일을 찾을 수 없습니다: {e}")
             return None
     return df[['pclass', 'survived', 'sex', 'age', 'fare']].copy()
 
@@ -42,15 +40,11 @@ def handle_missing_data(df):
 
 def handle_outliers(df):
     df = df.copy()
-    # 나이 이상치 처리
     df['age'] = np.where((df['age'] < 0) | (df['age'] > 100), np.nan, df['age'])
-    # 요금 IQR 기준 이상치 처리
-    Q1_fare = df['fare'].quantile(0.25)
-    Q3_fare = df['fare'].quantile(0.75)
-    IQR_fare = Q3_fare - Q1_fare
-    lower_bound = Q1_fare - 1.5 * IQR_fare
-    upper_bound = Q3_fare + 1.5 * IQR_fare
-    df['fare'] = np.where((df['fare'] < lower_bound) | (df['fare'] > upper_bound), np.nan, df['fare'])
+    Q1_f, Q3_f = df['fare'].quantile(0.25), df['fare'].quantile(0.75)
+    IQR_f = Q3_f - Q1_f
+    df['fare'] = np.where((df['fare'] < (Q1_f - 1.5 * IQR_f)) | 
+                          (df['fare'] > (Q3_f + 1.5 * IQR_f)), np.nan, df['fare'])
     return df
 
 def create_analysis_columns(df):
@@ -65,16 +59,13 @@ def create_analysis_columns(df):
 def normalize_data(df):
     df = df.copy()
     scaler = MinMaxScaler()
-    # 결측치를 채운 후 정규화 진행 (오류 방지)
-    temp_subset = df[['age', 'fare']].fillna(df[['age', 'fare']].median())
-    df[['age', 'fare']] = scaler.fit_transform(temp_subset)
+    subset = df[['age', 'fare']].fillna(df[['age', 'fare']].median())
+    df[['age', 'fare']] = scaler.fit_transform(subset)
     return df
 
-# --- 3. 시각화 및 상세 분석 함수 ---
+# --- 3. 시각화 및 분석 함수 ---
 def generate_summary_tables(df_raw):
     st.title("🚢 타이타닉 데이터 분석 종합 요약")
-    st.info(f"분석 파일: {FILE_PATH}")
-    
     col1, col2, col3 = st.columns(3)
     col1.metric("총 인원", f"{len(df_raw)}명")
     col2.metric("총 사망자", f"{df_raw['Death'].sum()}명", delta="-사망", delta_color="inverse")
@@ -84,15 +75,11 @@ def generate_summary_tables(df_raw):
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("💔 사망자 상세 요약")
-        st.write("**연령대별**")
         st.dataframe(df_raw.groupby('age_group', observed=False)['Death'].sum(), use_container_width=True)
-        st.write("**선실 등급별**")
         st.dataframe(df_raw.groupby('pclass')['Death'].sum(), use_container_width=True)
     with c2:
         st.subheader("✅ 구조자 상세 요약")
-        st.write("**연령대별**")
         st.dataframe(df_raw.groupby('age_group', observed=False)['Survival'].sum(), use_container_width=True)
-        st.write("**선실 등급별**")
         st.dataframe(df_raw.groupby('pclass')['Survival'].sum(), use_container_width=True)
 
 def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select):
@@ -104,7 +91,7 @@ def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select
         x_col = category
         plot_data[x_col] = "Class " + plot_data[x_col].astype(str)
 
-    # 그래프 너비 적당히 조절
+    # 그래프 너비 제한 (화면의 약 60%)
     col_plot, _ = st.columns([1.5, 1])
     with col_plot:
         fig, ax = plt.subplots(figsize=(7, 4))
@@ -112,7 +99,7 @@ def plot_counts(df_raw, category, target, target_name, plot_type, extreme_select
             sns.barplot(x=x_col, y=target, data=plot_data, ax=ax, palette='viridis')
         else:
             sns.lineplot(x=x_col, y=target, data=plot_data, ax=ax, marker='o')
-        ax.set_title(f"{target_name} by {category.capitalize()}", fontsize=12)
+        ax.set_title(f"{target} Count by {category.capitalize()}", fontsize=12)
         st.pyplot(fig)
 
     if extreme_select == '가장 높은 지점':
@@ -127,15 +114,14 @@ def plot_correlation(df, corr_plot_type):
     col_corr, _ = st.columns([1.2, 1])
     with col_corr:
         fig, ax = plt.subplots(figsize=(6, 5))
-        numeric_df = df[['survived', 'age', 'fare']].dropna()
         if corr_plot_type == 'Heatmap':
-            sns.heatmap(numeric_df.corr(), annot=True, cmap='coolwarm', fmt=".2f", ax=ax)
+            sns.heatmap(df[['survived', 'age', 'fare']].corr(), annot=True, cmap='coolwarm', fmt=".2f", ax=ax)
         else:
             sns.scatterplot(data=df, x='age', y='fare', hue='survived', alpha=0.6, ax=ax)
         st.pyplot(fig)
 
 def plot_boxplot_with_stats(df_norm, df_raw):
-    st.subheader("📊 박스 플롯 & 분위수 상세 분석")
+    st.subheader("📊 박스 플롯 & 분위수 분석")
     col_box, col_stat = st.columns([1.2, 1])
     with col_box:
         fig, ax = plt.subplots(figsize=(6, 4))
@@ -144,25 +130,19 @@ def plot_boxplot_with_stats(df_norm, df_raw):
     with col_stat:
         st.write("**통계 상세 분석 (Quantiles)**")
         for col in ['age', 'fare']:
-            q1 = df_raw[col].quantile(0.25)
-            median = df_raw[col].median()
-            q3 = df_raw[col].quantile(0.75)
-            st.info(f"**{col.upper()}**\n\nQ1: {q1:.1f} | Median: {median:.1f} | Q3: {q3:.1f}")
+            q1, med, q3 = df_raw[col].quantile(0.25), df_raw[col].median(), df_raw[col].quantile(0.75)
+            st.info(f"**{col.upper()}** - Q1: {q1:.1f} | Med: {med:.1f} | Q3: {q3:.1f}")
 
-# --- 4. 메인 앱 ---
+# --- 4. 메인 실행 ---
 def main():
     data = load_data(FILE_PATH)
     if data is None: return
 
-    data_raw = handle_missing_data(data)
-    data_raw = create_analysis_columns(data_raw)
-    
-    # 이상치 처리 후 정규화 진행
-    data_outlier_handled = handle_outliers(data_raw)
-    data_norm = normalize_data(data_outlier_handled)
+    data_raw = create_analysis_columns(handle_missing_data(data))
+    data_norm = normalize_data(handle_outliers(data_raw))
 
-    st.sidebar.title("🔍 분석 메뉴")
-    menu = st.sidebar.radio("메뉴를 선택하세요", ['종합 요약 (표)', '사망/구조자 분석 (그래프)', '상관관계 분석', '박스 플롯'])
+    st.sidebar.title("🔍 대시보드 메뉴")
+    menu = st.sidebar.radio("메뉴 선택", ['종합 요약 (표)', '사망/구조자 분석 (그래프)', '상관관계 분석', '박스 플롯'])
 
     if menu == '종합 요약 (표)':
         generate_summary_tables(data_raw)
